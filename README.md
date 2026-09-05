@@ -67,7 +67,7 @@ Early symptoms are notoriously deceptive and easily mistaken for common viral fl
 - **Frontend**: Streamlit (Python) or the bundled React PWA — single-screen, high-contrast, responsive for low-end Android smartphones.
 - **AI Explanation Layer**: Google Gemini (`@google/genai`) for low-latency, non-authoritative explanation and clinical context. Gemini is given ONLY the verified source registry and is instructed never to invent guidelines, citations, diagnoses, or medication dosing.
 - **Clinical Safety Rules**: Deterministic rule-based engine derived from verified Philippine DOH and WHO leptospirosis guidance. Risk level is always authoritative.
-- **Audit & Persistence**: Google Cloud Firestore (`triage_logs` collection) with local JSON buffer fallback during connectivity blackouts.
+- **Audit & Persistence**: Google Cloud Firestore (`triage_logs` collection) with local JSON buffer fallback during connectivity blackouts. A **sync queue** (`flush_pending_logs`) pushes buffered records to Firestore the moment connectivity returns — idempotent by design, since every record's `log_id` doubles as its Firestore document id, so retries can never duplicate.
 - **Container Hosting**: Google Cloud Run (containerized, auto-scaling to zero, deployed in `asia-southeast1`).
 
 ---
@@ -188,6 +188,18 @@ service cloud.firestore {
   }
 }
 ```
+
+---
+
+## ✅ Testing
+
+**Automated suite (132 tests):**
+```bash
+python -m pytest tests/ -v
+```
+Covers risk stratification, the tri-state (Yes/No/Unknown) input model, Gemini fallback/contradiction handling, offline + sync-queue behaviour, invalid input safety, audit integrity (no PII, versioned, capped), and the no-medication-dosing guarantee.
+
+**Manual QA checklist:** see [`TESTING.md`](TESTING.md) — safety-first scenarios with expected results for the live Streamlit/React app.
 
 ---
 

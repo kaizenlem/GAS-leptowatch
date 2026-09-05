@@ -11,7 +11,12 @@ import streamlit as st
 from datetime import datetime
 
 from triage import assess_patient, rule_based_triage
-from firestore_client import log_triage_decision, get_recent_audit_logs, get_cached_doh_protocols
+from firestore_client import (
+    log_triage_decision,
+    get_recent_audit_logs,
+    get_cached_doh_protocols,
+    flush_pending_logs,
+)
 from sources import tri_label
 
 # Streamlit Page Configuration - optimized for mobile & Android RHU phones
@@ -94,6 +99,11 @@ def main():
     gemini_key_set = bool(os.getenv("GEMINI_API_KEY"))
     if not gemini_key_set:
         st.warning("⚠️ Gemini unavailable - using deterministic rule engine only (AI explanation layer disabled)")
+
+    # Sync queue: flush offline-buffered audit records once connectivity returns.
+    flushed = flush_pending_logs()
+    if flushed:
+        st.success(f"📤 Synced {flushed} previously offline audit record(s) to Cloud Firestore")
 
     with st.expander("ℹ️ Quick Clinical Protocol & Tagalog Translation Guide", expanded=False):
         st.markdown("""

@@ -8,6 +8,7 @@ risk-stratified referral guidance derived from verified DOH/WHO sources.
 
 import os
 import json
+import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
@@ -81,9 +82,14 @@ def log_triage_decision(
     """
     Logs every triage decision to Firestore collection 'triage_logs'
     Falls back gracefully to local file logging if Firestore is unreachable or offline.
+
+    Every entry carries a stable client-generated ``log_id`` (uuid4 hex) used both to
+    fingerprint the local record and as the Firestore document id, so a later
+    ``flush_pending_logs`` cannot create duplicate documents.
     """
     timestamp_iso = datetime.now(timezone.utc).isoformat()
     log_entry = {
+        "log_id": uuid.uuid4().hex,
         "timestamp": timestamp_iso,
         "patient_data": patient_data,
         "result": result_data,
@@ -95,7 +101,7 @@ def log_triage_decision(
     db = get_firestore_db()
     if db is not None:
         try:
-            doc_ref = db.collection("triage_logs").document()
+            doc_ref = db.collection("triage_logs").document(log_entry["log_id"])
             log_entry["doc_id"] = doc_ref.id
             log_entry["synced_to_cloud"] = True
             doc_ref.set(log_entry)
@@ -108,6 +114,84 @@ def log_triage_decision(
     # Fallback to local persistence
     _append_local_log(log_entry)
     return {"status": "success", "synced": False, "log": log_entry}
+
+
+def flush_pending_logs() -> int:
+    """
+    Best-effort sync queue: pushes buffered local audit records to Firestore once
+    connectivity returns, then drops them from the local file.
+
+    Idempotent by design: each record's ``log_id`` is its Firestore document id, so
+    retrying (or running multiple app instances) can never duplicate an entry. Records
+    that still cannot be written (still offline, permissions issue) stay in the file.
+
+    Returns the number of records successfully flushed.
+    """
+    if not os.path.exists(LOCAL_AUDIT_LOG_FILE):
+        return 0
+
+    try:
+        with open(LOCAL_AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except Exception as e:
+        logger.error("Failed to read local audit buffer: %s", e)
+        return 0
+
+    if not logs:
+        return 0
+
+    try:
+        db = get_firestore_db()
+    except Exception as e:
+        logger.warning("Firestore unavailable (%s); %d record(s) stay local.", e, len(logs))
+        return 0
+    if db is None:
+        return 0
+
+    pending = [e for e in logs if not e.get("synced_to_cloud", False)]
+    if not pending:
+        # Everything already synced: the buffer has served its purpose.
+        _clear_local_log()
+        return 0
+
+    remaining = []
+    flushed = 0
+    for entry in pending:
+        doc_id = entry.get("doc_id") or entry.get("log_id") or uuid.uuid4().hex
+        if not entry.get("log_id"):
+            entry["log_id"] = doc_id
+        try:
+            db.collection("triage_logs").document(doc_id).set(entry)
+            entry["doc_id"] = doc_id
+            entry["synced_to_cloud"] = True
+            flushed += 1
+            logger.info("Synced buffered decision %s to Firestore", doc_id)
+        except Exception as e:
+            logger.warning("Sync flush failed for %s (%s); keeping it local.", doc_id, e)
+            remaining.append(entry)
+
+    _rewrite_local_log(remaining)
+    return flushed
+
+
+def _clear_local_log():
+    try:
+        os.remove(LOCAL_AUDIT_LOG_FILE)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.error("Failed to clear local audit buffer: %s", e)
+
+
+def _rewrite_local_log(logs: List[Dict[str, Any]]):
+    try:
+        if not logs:
+            _clear_local_log()
+            return
+        with open(LOCAL_AUDIT_LOG_FILE, "w", encoding="utf-8") as f:
+            json.dump(logs[:500], f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error("Failed to rewrite local audit buffer: %s", e)
 
 
 def _append_local_log(entry: Dict[str, Any]):
