@@ -11,6 +11,7 @@ import {
   Sparkles,
   Clock,
   ShieldCheck,
+  UserPlus,
 } from "lucide-react";
 
 interface TriageResultCardProps {
@@ -19,6 +20,7 @@ interface TriageResultCardProps {
   logId?: string;
   loggedAt?: string;
   syncedToCloud: boolean;
+  onAssessNextPatient?: () => void;
 }
 
 export const TriageResultCard: React.FC<TriageResultCardProps> = ({
@@ -27,6 +29,7 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
   logId,
   loggedAt,
   syncedToCloud,
+  onAssessNextPatient,
 }) => {
   const risk = result.risk_level.toUpperCase();
 
@@ -207,6 +210,24 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
             : `Saved to local offline cache | ${loggedAt || "Just now"}`}
         </span>
       </div>
+
+      {/* Assess Next Patient Action */}
+      {onAssessNextPatient && (
+        <div className="mt-4 pt-3.5 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/60 p-3 rounded-lg">
+          <span className="text-xs text-slate-600 font-medium text-center sm:text-left">
+            Finished with this patient? Clear form to assess the next person in line.
+          </span>
+          <button
+            type="button"
+            id="btn-assess-next-patient"
+            onClick={onAssessNextPatient}
+            className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer shrink-0"
+          >
+            <UserPlus className="w-4 h-4 text-emerald-400" />
+            <span>Assess Next Patient (Clear Form)</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

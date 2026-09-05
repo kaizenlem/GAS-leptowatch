@@ -31,6 +31,7 @@ export default function App() {
   );
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [resetSignal, setResetSignal] = useState<number>(0);
   const [lastSubmission, setLastSubmission] = useState<{
     result: TriageResult;
     patientData: PatientFormData;
@@ -43,6 +44,16 @@ export default function App() {
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [isNurseGuideOpen, setIsNurseGuideOpen] = useState<boolean>(false);
   const [isDeliverablesOpen, setIsDeliverablesOpen] = useState<boolean>(false);
+
+  const handleAssessNextPatient = () => {
+    setLastSubmission(null);
+    setResetSignal((prev) => prev + 1);
+    setTimeout(() => {
+      document
+        .getElementById("triage-main-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
 
   // Monitor browser network connectivity
   useEffect(() => {
@@ -352,6 +363,8 @@ export default function App() {
           onSubmit={handleAssessRisk}
           isLoading={isLoading}
           isOffline={isActuallyOffline}
+          resetSignal={resetSignal}
+          onClear={() => setLastSubmission(null)}
         />
 
         {/* Result Card Output */}
@@ -363,6 +376,7 @@ export default function App() {
               logId={lastSubmission.logId}
               loggedAt={new Date(lastSubmission.timestamp).toLocaleTimeString()}
               syncedToCloud={lastSubmission.synced}
+              onAssessNextPatient={handleAssessNextPatient}
             />
           </div>
         )}

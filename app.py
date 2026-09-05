@@ -212,6 +212,11 @@ def main():
         else:
             st.caption(f"Saved to local offline buffer | Timestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
+        # Next Patient Action Button
+        st.markdown("")
+        if st.button("➕ Assess Next Patient (Clear Form)", use_container_width=True, type="secondary"):
+            st.rerun()
+
     # Audit Trail Viewer
     st.markdown("---")
     with st.expander("📋 View Recent RHU Audit Trail (Last 10 Cases)", expanded=False):
