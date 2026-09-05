@@ -1,0 +1,6 @@
+{
+  "name": "LeptoWatch - Leptospirosis Triage",
+  "description": "AI clinical decision support co-pilot for Philippine rural health unit (RHU) nurses adhering to DOH 2026 guidelines.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
