@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PatientFormData } from "../types";
+import { PatientFormData, TriageFactor } from "../types";
 import {
   AlertTriangle,
   Flame,
@@ -8,22 +8,67 @@ import {
   Sparkles,
   Zap,
   RotateCcw,
-  UserPlus,
 } from "lucide-react";
 
 const DEFAULT_FORM_DATA: PatientFormData = {
-  flood_exposure: false,
+  flood_exposure: "unknown",
   flood_days_ago: 0,
-  fever: false,
-  myalgia: false,
-  headache: false,
-  red_eyes: false,
-  jaundice: false,
-  oliguria: false,
+  fever: "unknown",
+  myalgia: "unknown",
+  headache: "unknown",
+  red_eyes: "unknown",
+  jaundice: "unknown",
+  oliguria: "unknown",
   symptom_days: 1,
   age: 35,
   comorbidities: "",
 };
+
+const TRI_OPTIONS = ["yes", "no", "unknown"] as const;
+
+function TriToggle({
+  value,
+  onChange,
+  id,
+}: {
+  value: TriageFactor;
+  onChange: (v: TriageFactor) => void;
+  id: string;
+}) {
+  return (
+    <div className="flex gap-1 shrink-0" role="radiogroup" aria-label={id}>
+      {TRI_OPTIONS.map((opt) => {
+        const active = value === opt;
+        const base =
+          "text-[11px] font-bold px-2.5 py-1 rounded-md border transition-colors cursor-pointer";
+        let style: string;
+        if (opt === "yes") {
+          style = active
+            ? "bg-emerald-600 text-white border-emerald-600"
+            : "bg-white text-emerald-700 border-slate-200 hover:bg-emerald-50";
+        } else if (opt === "no") {
+          style = active
+            ? "bg-slate-600 text-white border-slate-600"
+            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50";
+        } else {
+          style = active
+            ? "bg-amber-500 text-white border-amber-500"
+            : "bg-white text-amber-700 border-slate-200 hover:bg-amber-50";
+        }
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onChange(opt)}
+            className={`${base} ${style}`}
+          >
+            {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Unknown"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface TriageFormProps {
   onSubmit: (data: PatientFormData) => void;
@@ -33,6 +78,46 @@ interface TriageFormProps {
   resetSignal?: number;
 }
 
+const SYMPTOM_ITEMS: {
+  key: "fever" | "myalgia" | "headache" | "red_eyes" | "jaundice" | "oliguria";
+  label: string;
+  detail: string;
+  redFlag?: boolean;
+}[] = [
+  {
+    key: "fever",
+    label: "Fever",
+    detail: "Acute high fever (≥38°C)",
+  },
+  {
+    key: "myalgia",
+    label: "Severe muscle pain (calves/lower back)",
+    detail: "High-specificity hallmark of Leptospira",
+  },
+  {
+    key: "headache",
+    label: "Headache",
+    detail: "Frontal or retro-orbital aching",
+  },
+  {
+    key: "red_eyes",
+    label: "Red eyes",
+    detail: "Conjunctival suffusion without purulent discharge",
+  },
+  {
+    key: "jaundice",
+    label: "Yellowing of skin/eyes (jaundice)",
+    detail: "Sign of hepatic dysfunction / Weil's disease",
+    redFlag: true,
+  },
+  {
+    key: "oliguria",
+    label: "Decreased urination (oliguria)",
+    detail: "Sign of acute kidney injury (<0.5 mL/kg/h)",
+    redFlag: true,
+  },
+];
+
 export const TriageForm: React.FC<TriageFormProps> = ({
   onSubmit,
   isLoading,
@@ -41,17 +126,8 @@ export const TriageForm: React.FC<TriageFormProps> = ({
   resetSignal = 0,
 }) => {
   const [formData, setFormData] = useState<PatientFormData>({
-    flood_exposure: false,
-    flood_days_ago: 0,
-    fever: false,
-    myalgia: false,
-    headache: false,
-    red_eyes: false,
-    jaundice: false,
-    oliguria: false,
+    ...DEFAULT_FORM_DATA,
     symptom_days: 2,
-    age: 35,
-    comorbidities: "",
   });
 
   // Watch for external reset trigger (e.g. from Assess Next Patient button)
@@ -76,61 +152,65 @@ export const TriageForm: React.FC<TriageFormProps> = ({
   const applyPreset = (presetType: "critical" | "high" | "moderate" | "low") => {
     if (presetType === "critical") {
       setFormData({
-        flood_exposure: true,
+        flood_exposure: "yes",
         flood_days_ago: 6,
-        fever: true,
-        myalgia: true,
-        headache: true,
-        red_eyes: true,
-        jaundice: true,
-        oliguria: true,
+        fever: "yes",
+        myalgia: "yes",
+        headache: "yes",
+        red_eyes: "yes",
+        jaundice: "yes",
+        oliguria: "yes",
         symptom_days: 4,
         age: 48,
         comorbidities: "Hypertension, CKD stage 1",
       });
     } else if (presetType === "high") {
       setFormData({
-        flood_exposure: true,
+        flood_exposure: "yes",
         flood_days_ago: 7,
-        fever: true,
-        myalgia: true,
-        headache: true,
-        red_eyes: true,
-        jaundice: false,
-        oliguria: false,
+        fever: "yes",
+        myalgia: "yes",
+        headache: "yes",
+        red_eyes: "yes",
+        jaundice: "no",
+        oliguria: "no",
         symptom_days: 3,
         age: 36,
         comorbidities: "None",
       });
     } else if (presetType === "moderate") {
       setFormData({
-        flood_exposure: true,
+        flood_exposure: "yes",
         flood_days_ago: 4,
-        fever: true,
-        myalgia: false,
-        headache: false,
-        red_eyes: false,
-        jaundice: false,
-        oliguria: false,
+        fever: "yes",
+        myalgia: "no",
+        headache: "no",
+        red_eyes: "no",
+        jaundice: "no",
+        oliguria: "no",
         symptom_days: 1,
         age: 29,
         comorbidities: "None",
       });
     } else {
       setFormData({
-        flood_exposure: false,
+        flood_exposure: "no",
         flood_days_ago: 0,
-        fever: true,
-        myalgia: false,
-        headache: true,
-        red_eyes: false,
-        jaundice: false,
-        oliguria: false,
+        fever: "yes",
+        myalgia: "no",
+        headache: "yes",
+        red_eyes: "no",
+        jaundice: "no",
+        oliguria: "no",
         symptom_days: 2,
         age: 24,
         comorbidities: "None",
       });
     }
+  };
+
+  const setFactor = (key: keyof PatientFormData, value: TriageFactor) => {
+    setFormData({ ...formData, [key]: value });
   };
 
   return (
@@ -200,66 +280,58 @@ export const TriageForm: React.FC<TriageFormProps> = ({
         </h3>
 
         <div className="space-y-4">
-          <label
-            htmlFor="field-flood-exposure"
-            className={`flex items-start gap-3 p-3.5 rounded-lg border transition-all cursor-pointer ${
-              formData.flood_exposure
-                ? "bg-blue-50/70 border-blue-300 text-blue-950 font-medium"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-flood-exposure"
-              checked={formData.flood_exposure}
-              onChange={(e) =>
-                setFormData({ ...formData, flood_exposure: e.target.checked })
-              }
-              className="mt-1 w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-            />
-            <div className="text-sm leading-relaxed">
-              <span className="font-semibold block text-slate-900">
-                Has the patient waded through floodwater in the last 2–4 weeks?
-              </span>
-              <span className="text-xs text-slate-500 block mt-0.5">
-                Tagalog: &quot;Nalusong ka ba sa tubig-baha o maruming tubig
-                nitong nakaraang 2 hanggang 4 na linggo?&quot;
-              </span>
-            </div>
-          </label>
-
-          {formData.flood_exposure && (
-            <div className="ml-2 sm:ml-8 pl-3 border-l-2 border-blue-200">
-              <label
-                htmlFor="field-flood-days"
-                className="block text-xs font-semibold text-slate-700 mb-1"
-              >
-                Days since flood exposure (if known, 0–30)
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  id="field-flood-days"
-                  min={0}
-                  max={30}
-                  value={formData.flood_days_ago}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      flood_days_ago: Math.max(
-                        0,
-                        Math.min(30, Number(e.target.value))
-                      ),
-                    })
-                  }
-                  className="w-28 px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
-                />
-                <span className="text-xs text-slate-500">
-                  Incubation period: Typically 5–14 days (range 2–30 days)
+          <div className="p-3.5 rounded-lg border border-slate-200 bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="text-sm leading-relaxed">
+                <span className="font-semibold block text-slate-900">
+                  Has the patient waded through floodwater in the last 2–4
+                  weeks?
+                </span>
+                <span className="text-xs text-slate-500 block mt-0.5">
+                  Tagalog: &quot;Nalusong ka ba sa tubig-baha o maruming tubig
+                  nitong nakaraang 2 hanggang 4 na linggo?&quot;
                 </span>
               </div>
+              <TriToggle
+                id="field-flood-exposure"
+                value={formData.flood_exposure}
+                onChange={(v) => setFactor("flood_exposure", v)}
+              />
             </div>
-          )}
+
+            {formData.flood_exposure === "yes" && (
+              <div className="mt-3 ml-0 sm:ml-2 pl-3 border-l-2 border-blue-200">
+                <label
+                  htmlFor="field-flood-days"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
+                >
+                  Days since flood exposure (if known, 0–30)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    id="field-flood-days"
+                    min={0}
+                    max={30}
+                    value={formData.flood_days_ago}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        flood_days_ago: Math.max(
+                          0,
+                          Math.min(30, Number(e.target.value))
+                        ),
+                      })
+                    }
+                    className="w-28 px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                  />
+                  <span className="text-xs text-slate-500">
+                    Incubation period: Typically 5–14 days (range 2–30 days)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -271,174 +343,40 @@ export const TriageForm: React.FC<TriageFormProps> = ({
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* Fever */}
-          <label
-            htmlFor="field-fever"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.fever
-                ? "bg-amber-50/80 border-amber-300 text-amber-950 font-medium"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-fever"
-              checked={formData.fever}
-              onChange={(e) =>
-                setFormData({ ...formData, fever: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block">Fever</span>
-              <span className="text-[11px] text-slate-500">
-                Acute high fever (≥38°C)
-              </span>
+          {SYMPTOM_ITEMS.map((item) => (
+            <div
+              key={item.key}
+              className={`p-3 rounded-lg border bg-white ${
+                item.redFlag ? "border-rose-200" : "border-slate-200"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-xs sm:text-sm">
+                  <span className="font-semibold text-slate-900 block flex items-center gap-1 flex-wrap">
+                    {item.label}
+                    {item.redFlag && (
+                      <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">
+                        RED FLAG
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    {item.detail}
+                  </span>
+                </div>
+                <TriToggle
+                  id={`field-${item.key}`}
+                  value={formData[item.key]}
+                  onChange={(v) => setFactor(item.key, v)}
+                />
+              </div>
             </div>
-          </label>
-
-          {/* Severe Muscle Pain */}
-          <label
-            htmlFor="field-myalgia"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.myalgia
-                ? "bg-orange-50/80 border-orange-300 text-orange-950 font-medium"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-myalgia"
-              checked={formData.myalgia}
-              onChange={(e) =>
-                setFormData({ ...formData, myalgia: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block">
-                Severe muscle pain (especially calves/lower back)
-              </span>
-              <span className="text-[11px] text-slate-500">
-                High-specificity hallmark of Leptospira
-              </span>
-            </div>
-          </label>
-
-          {/* Headache */}
-          <label
-            htmlFor="field-headache"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.headache
-                ? "bg-slate-100 border-slate-300 text-slate-900 font-medium"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-headache"
-              checked={formData.headache}
-              onChange={(e) =>
-                setFormData({ ...formData, headache: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-slate-600 rounded border-slate-300 focus:ring-slate-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block">Headache</span>
-              <span className="text-[11px] text-slate-500">
-                Frontal or retro-orbital aching
-              </span>
-            </div>
-          </label>
-
-          {/* Red Eyes */}
-          <label
-            htmlFor="field-red-eyes"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.red_eyes
-                ? "bg-rose-50/80 border-rose-300 text-rose-950 font-medium"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-red-eyes"
-              checked={formData.red_eyes}
-              onChange={(e) =>
-                setFormData({ ...formData, red_eyes: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block">Red eyes</span>
-              <span className="text-[11px] text-slate-500">
-                Conjunctival suffusion without purulent discharge
-              </span>
-            </div>
-          </label>
-
-          {/* Yellowing of skin/eyes (Jaundice) */}
-          <label
-            htmlFor="field-jaundice"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.jaundice
-                ? "bg-amber-100 border-amber-400 text-amber-950 font-semibold ring-1 ring-amber-400"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-jaundice"
-              checked={formData.jaundice}
-              onChange={(e) =>
-                setFormData({ ...formData, jaundice: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block flex items-center gap-1">
-                Yellowing of skin/eyes (jaundice)
-                <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">
-                  RED FLAG
-                </span>
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Sign of hepatic dysfunction / Weil&apos;s disease
-              </span>
-            </div>
-          </label>
-
-          {/* Decreased Urination (Oliguria) */}
-          <label
-            htmlFor="field-oliguria"
-            className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-              formData.oliguria
-                ? "bg-rose-100 border-rose-400 text-rose-950 font-semibold ring-1 ring-rose-400"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              id="field-oliguria"
-              checked={formData.oliguria}
-              onChange={(e) =>
-                setFormData({ ...formData, oliguria: e.target.checked })
-              }
-              className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
-            />
-            <div className="text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 block flex items-center gap-1">
-                Decreased urination (oliguria)
-                <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded font-bold">
-                  RED FLAG
-                </span>
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Sign of acute kidney injury (&lt;0.5 mL/kg/h)
-              </span>
-            </div>
-          </label>
+          ))}
         </div>
+        <p className="text-[11px] text-slate-400 mt-2">
+          Mark symptoms as Unknown if not assessed — the tool will NOT treat an
+          unanswered symptom as absent.
+        </p>
       </div>
 
       {/* Section 3: History & Vitals */}
@@ -536,12 +474,12 @@ export const TriageForm: React.FC<TriageFormProps> = ({
           disabled={isLoading}
           className="flex-1 w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-base cursor-pointer"
         >
-{isLoading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Evaluating verified protocols &amp; AI context...</span>
-              </>
-            ) : (
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Evaluating verified protocols &amp; AI context...</span>
+            </>
+          ) : (
             <>
               <Sparkles className="w-5 h-5 text-blue-200" />
               <span>Assess Risk</span>

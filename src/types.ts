@@ -5,15 +5,17 @@ export type RiskLevel =
   | "LOW"
   | "INSUFFICIENT_INFORMATION";
 
+export type TriageFactor = "yes" | "no" | "unknown";
+
 export interface PatientFormData {
-  flood_exposure: boolean;
+  flood_exposure: TriageFactor;
   flood_days_ago: number;
-  fever: boolean;
-  myalgia: boolean;
-  headache: boolean;
-  red_eyes: boolean;
-  jaundice: boolean;
-  oliguria: boolean;
+  fever: TriageFactor;
+  myalgia: TriageFactor;
+  headache: TriageFactor;
+  red_eyes: TriageFactor;
+  jaundice: TriageFactor;
+  oliguria: TriageFactor;
   symptom_days: number;
   age: number;
   comorbidities: string;

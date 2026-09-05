@@ -11,7 +11,17 @@ import {
   VERIFIED_SOURCES,
   SOURCE_REGISTRY,
 } from "./src/sources";
-import type { TriageResult } from "./src/types";
+import type { TriageResult, TriageFactor } from "./src/types";
+import { evaluateClientDOHRules as evaluateDOHRules } from "./src/utils/triageEngine";
+
+function triLabel(value: TriageFactor | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "Unknown";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  const v = value.toLowerCase();
+  if (v === "yes") return "Yes";
+  if (v === "no") return "No";
+  return "Unknown";
+}
 
 dotenv.config();
 
@@ -25,14 +35,14 @@ interface AuditLog {
   id: string;
   timestamp: string;
   patient_data: {
-    flood_exposure: boolean;
+    flood_exposure: TriageFactor;
     flood_days_ago: number;
-    fever: boolean;
-    myalgia: boolean;
-    headache: boolean;
-    red_eyes: boolean;
-    jaundice: boolean;
-    oliguria: boolean;
+    fever: TriageFactor;
+    myalgia: TriageFactor;
+    headache: TriageFactor;
+    red_eyes: TriageFactor;
+    jaundice: TriageFactor;
+    oliguria: TriageFactor;
     symptom_days: number;
     age: number;
     comorbidities: string;
@@ -58,14 +68,14 @@ const auditLogs: AuditLog[] = [
     id: "seed-log-1",
     timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
     patient_data: {
-      flood_exposure: true,
+      flood_exposure: "yes",
       flood_days_ago: 5,
-      fever: true,
-      myalgia: true,
-      headache: true,
-      red_eyes: true,
-      jaundice: false,
-      oliguria: false,
+      fever: "yes",
+      myalgia: "yes",
+      headache: "yes",
+      red_eyes: "yes",
+      jaundice: "no",
+      oliguria: "no",
       symptom_days: 3,
       age: 42,
       comorbidities: "Hypertension",
@@ -88,14 +98,14 @@ const auditLogs: AuditLog[] = [
     id: "seed-log-2",
     timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
     patient_data: {
-      flood_exposure: true,
+      flood_exposure: "yes",
       flood_days_ago: 8,
-      fever: true,
-      myalgia: true,
-      headache: true,
-      red_eyes: true,
-      jaundice: true,
-      oliguria: true,
+      fever: "yes",
+      myalgia: "yes",
+      headache: "yes",
+      red_eyes: "yes",
+      jaundice: "yes",
+      oliguria: "yes",
       symptom_days: 4,
       age: 56,
       comorbidities: "Type 2 Diabetes",
@@ -115,114 +125,6 @@ const auditLogs: AuditLog[] = [
     ruleset_version: RULESET_VERSION,
   },
 ];
-
-// Deterministic Leptospirosis Triage Rule Engine (authoritative). Referral guidance only.
-function evaluateDOHRules(data: AuditLog["patient_data"]) {
-  const {
-    flood_exposure,
-    fever,
-    myalgia,
-    jaundice,
-    oliguria,
-    red_eyes,
-    headache,
-    symptom_days,
-  } = data;
-
-  const floodKnown = flood_exposure !== null && flood_exposure !== undefined;
-  const feverKnown = fever !== null && fever !== undefined;
-
-  if (!floodKnown || !feverKnown) {
-    return {
-      risk_level: "INSUFFICIENT_INFORMATION" as const,
-      recommendation:
-        "Insufficient information to safely classify this patient. Confirm flood exposure history and fever status before triage; consult with the physician on duty.",
-      citations: [WHO_GUIDANCE],
-      reasoning:
-        "Flood exposure and fever status are decisive for leptospirosis risk stratification and were not fully recorded.",
-      is_ai_generated: false,
-      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-    };
-  }
-
-  // 1. CRITICAL RISK: Flood exposure + fever + (jaundice OR oliguria)
-  if (flood_exposure && fever && (jaundice || oliguria)) {
-    const signs = [];
-    if (jaundice) signs.push("jaundice (hepatic compromise)");
-    if (oliguria) signs.push("oliguria (acute renal risk)");
-
-    return {
-      risk_level: "CRITICAL" as const,
-      recommendation:
-        "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
-      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
-      reasoning: `Patient has documented flood exposure, acute fever, and red flag organ dysfunction (${signs.join(
-        " and "
-      )}). Immediate referral via the DOH fast lane is required.`,
-      is_ai_generated: false,
-      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-    };
-  }
-
-  // 2. HIGH RISK: Flood exposure + fever + myalgia
-  if (flood_exposure && fever && myalgia) {
-    const extra = [];
-    if (red_eyes) extra.push("conjunctival suffusion");
-    if (headache) extra.push("severe headache");
-
-    return {
-      risk_level: "HIGH" as const,
-      recommendation:
-        "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
-      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
-      reasoning: `Classic triad of flood exposure, fever, and severe myalgia (calves/back)${
-        extra.length ? ` accompanied by ${extra.join(" and ")}` : ""
-      } within symptom day ${symptom_days} requires prompt clinical evaluation.`,
-      is_ai_generated: false,
-      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-    };
-  }
-
-  // 3. MODERATE RISK: Flood exposure + fever only
-  if (flood_exposure && fever) {
-    return {
-      risk_level: "MODERATE" as const,
-      recommendation:
-        "Flood exposure with fever. Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately for physician evaluation, including prophylaxis considerations per DOH guidance.",
-      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
-      reasoning:
-        "Flood exposure with active fever without overt myalgia or organ failure signs. Requires close 48h observation and physician evaluation.",
-      is_ai_generated: false,
-      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-    };
-  }
-
-  // 4. LOW RISK: No flood exposure
-  if (!flood_exposure) {
-    return {
-      risk_level: "LOW" as const,
-      recommendation:
-        "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
-      citations: [WHO_GUIDANCE, CDC_OVERVIEW],
-      reasoning:
-        "Lack of floodwater contact in the 2-4 week incubation timeframe makes leptospirosis clinically unlikely.",
-      is_ai_generated: false,
-      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-    };
-  }
-
-  // Fallback: Flood exposure with no fever
-  return {
-    risk_level: "LOW" as const,
-    recommendation:
-      "Flood exposure without active fever or systemic symptoms. Health education on symptom watch. Advise physician consultation regarding prophylactic management if exposure occurred recently.",
-    citations: [DOH_FAST_LANE, CDC_OVERVIEW],
-    reasoning:
-      "Patient reports flood exposure without active fever or systemic symptoms. Educate on warning signs.",
-    is_ai_generated: false,
-    model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
-  };
-}
 
 // Helper to call Gemini with multi-model fallback and graceful handling of 503/429 high demand spikes
 interface GeminiTriageResponse {
@@ -408,14 +310,14 @@ Your role is to:
 5. Reference ONLY the verified protocol sources below, by their source_id.
 
 PATIENT INPUT:
-- Flood exposure: ${patientData.flood_exposure ? "Yes" : "No"}
+- Flood exposure: ${triLabel(patientData.flood_exposure)}
 - Days since flood: ${patientData.flood_days_ago}
-- Fever: ${patientData.fever ? "Yes" : "No"}
-- Myalgia: ${patientData.myalgia ? "Yes" : "No"}
-- Headache: ${patientData.headache ? "Yes" : "No"}
-- Red eyes: ${patientData.red_eyes ? "Yes" : "No"}
-- Jaundice: ${patientData.jaundice ? "Yes" : "No"}
-- Oliguria: ${patientData.oliguria ? "Yes" : "No"}
+- Fever: ${triLabel(patientData.fever)}
+- Myalgia: ${triLabel(patientData.myalgia)}
+- Headache: ${triLabel(patientData.headache)}
+- Red eyes: ${triLabel(patientData.red_eyes)}
+- Jaundice: ${triLabel(patientData.jaundice)}
+- Oliguria: ${triLabel(patientData.oliguria)}
 - Symptom duration: ${patientData.symptom_days} days
 - Age: ${patientData.age}
 - Comorbidities: ${patientData.comorbidities || "None"}

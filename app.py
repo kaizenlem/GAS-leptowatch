@@ -12,6 +12,7 @@ from datetime import datetime
 
 from triage import assess_patient, rule_based_triage
 from firestore_client import log_triage_decision, get_recent_audit_logs, get_cached_doh_protocols
+from sources import tri_label
 
 # Streamlit Page Configuration - optimized for mobile & Android RHU phones
 st.set_page_config(
@@ -118,19 +119,26 @@ def main():
 
     with st.form(key="triage_form"):
         st.markdown("### 1. Exposure History")
-        flood_exposure = st.checkbox("Has the patient waded through floodwater in the last 2–4 weeks?", value=False)
+        flood_exposure = st.radio(
+            "Has the patient waded through floodwater in the last 2–4 weeks?",
+            ["Yes", "No", "Unknown"],
+            index=2,
+            horizontal=True,
+            help="If uncertain or not asked, leave Unknown — the tool will not guess.",
+        )
+        flood_exposure = flood_exposure.lower()
         flood_days_ago = st.number_input("Days since flood exposure (if known)", min_value=0, max_value=30, value=7, step=1)
 
         st.markdown("### 2. Clinical Symptoms")
         col_symp1, col_symp2 = st.columns(2)
         with col_symp1:
-            fever = st.checkbox("Fever", value=False)
-            myalgia = st.checkbox("Severe muscle pain (especially calves/lower back)", value=False)
-            headache = st.checkbox("Headache", value=False)
+            fever = st.radio("Fever (≥38°C)", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
+            myalgia = st.radio("Severe muscle pain (calves/lower back)", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
+            headache = st.radio("Headache", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
         with col_symp2:
-            red_eyes = st.checkbox("Red eyes", value=False)
-            jaundice = st.checkbox("Yellowing of skin/eyes (jaundice)", value=False)
-            oliguria = st.checkbox("Decreased urination (oliguria)", value=False)
+            red_eyes = st.radio("Red eyes", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
+            jaundice = st.radio("Yellowing of skin/eyes (jaundice)", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
+            oliguria = st.radio("Decreased urination (oliguria)", ["Yes", "No", "Unknown"], index=2, horizontal=True).lower()
 
         st.markdown("### 3. Patient Vitals & History")
         col_meta1, col_meta2 = st.columns(2)
@@ -246,7 +254,7 @@ def main():
                 risk_lvl = res.get("risk_level", "UNKNOWN")
                 ts = entry.get("timestamp", "N/A")[:19].replace("T", " ")
                 st.markdown(f"**#{idx+1} [{risk_lvl}]** - Nurse `{entry.get('nurse_id', 'anonymous')}` at `{ts} UTC`")
-                st.caption(f"Age: {pat.get('age')}, Flood Exposure: {'Yes' if pat.get('flood_exposure') else 'No'}, Days since flood: {pat.get('flood_days_ago')}d, Symptoms: Fever={pat.get('fever')}, Calves={pat.get('myalgia')}, Jaundice={pat.get('jaundice')}, Oliguria={pat.get('oliguria')}")
+                st.caption(f"Age: {pat.get('age')}, Flood Exposure: {tri_label(pat.get('flood_exposure'))}, Days since flood: {pat.get('flood_days_ago')}d, Symptoms: Fever={tri_label(pat.get('fever'))}, Calves={tri_label(pat.get('myalgia'))}, Jaundice={tri_label(pat.get('jaundice'))}, Oliguria={tri_label(pat.get('oliguria'))}")
                 st.markdown(f"> *{res.get('recommendation', '')}*")
                 st.markdown("---")
 

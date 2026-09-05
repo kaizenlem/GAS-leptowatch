@@ -7,7 +7,7 @@ Gemini acts as an explanation/context layer only and can never change the risk l
 
 from typing import Dict, Any, Tuple
 
-from sources import RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW
+from sources import RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW, tri_state
 from gemini_client import GeminiTriageClient, TriageResult
 
 
@@ -30,13 +30,13 @@ def rule_based_triage(patient_data: Dict[str, Any]) -> TriageResult:
     NOTE: The rule engine NEVER prescribes medication or dosing. Treatment decisions
     are always referred to the attending physician / DOH clinical management.
     """
-    flood = patient_data.get("flood_exposure")
-    fever = patient_data.get("fever")
-    myalgia = patient_data.get("myalgia")
-    jaundice = patient_data.get("jaundice")
-    oliguria = patient_data.get("oliguria")
-    red_eyes = patient_data.get("red_eyes")
-    headache = patient_data.get("headache")
+    flood = tri_state(patient_data.get("flood_exposure"))
+    fever = tri_state(patient_data.get("fever"))
+    myalgia = tri_state(patient_data.get("myalgia"))
+    jaundice = tri_state(patient_data.get("jaundice"))
+    oliguria = tri_state(patient_data.get("oliguria"))
+    red_eyes = tri_state(patient_data.get("red_eyes"))
+    headache = tri_state(patient_data.get("headache"))
     symptom_days = patient_data.get("symptom_days", 2)
 
     # INSUFFICIENT_INFORMATION: flood exposure is the single most decisive risk factor.

@@ -1,5 +1,19 @@
-import { PatientFormData, TriageResult } from "../types";
+import { PatientFormData, TriageFactor, TriageResult } from "../types";
 import { RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW } from "../sources";
+
+const UNKNOWN_DECLARATIONS = new Set([
+  "unknown", "unclear", "not sure", "na", "n/a", "n/k", "none recorded", "?",
+]);
+
+function triFactor(value: TriageFactor | boolean | null | undefined): boolean | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "boolean") return value;
+  const v = value.trim().toLowerCase();
+  if (UNKNOWN_DECLARATIONS.has(v)) return null;
+  if (v === "yes" || v === "true" || v === "1") return true;
+  if (v === "no" || v === "false" || v === "0") return false;
+  return Boolean(value);
+}
 
 /**
  * Deterministic Leptospirosis Triage Rule Engine.
@@ -8,21 +22,17 @@ import { RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW } from "../s
  * Never prescribes medication or dosing - treatment decisions are referred to the physician.
  */
 export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
-  const {
-    flood_exposure,
-    fever,
-    myalgia,
-    jaundice,
-    oliguria,
-    red_eyes,
-    headache,
-    symptom_days,
-  } = data;
+  const flood = triFactor(data.flood_exposure);
+  const fever = triFactor(data.fever);
+  const myalgia = triFactor(data.myalgia);
+  const jaundice = triFactor(data.jaundice);
+  const oliguria = triFactor(data.oliguria);
+  const red_eyes = triFactor(data.red_eyes);
+  const headache = triFactor(data.headache);
+  const symptom_days = data.symptom_days;
 
   // INSUFFICIENT_INFORMATION: flood exposure is the single most decisive factor.
-  const floodKnown = flood_exposure !== null && flood_exposure !== undefined;
-  const feverKnown = fever !== null && fever !== undefined;
-  if (!floodKnown || !feverKnown) {
+  if (flood === null || fever === null) {
     return {
       risk_level: "INSUFFICIENT_INFORMATION",
       recommendation:
@@ -36,7 +46,7 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   }
 
   // 1. CRITICAL RISK: Flood exposure + fever + (jaundice OR oliguria)
-  if (flood_exposure && fever && (jaundice || oliguria)) {
+  if (flood && fever && (jaundice || oliguria)) {
     const signs: string[] = [];
     if (jaundice) signs.push("jaundice (hepatic compromise)");
     if (oliguria) signs.push("oliguria (acute renal risk)");
@@ -55,7 +65,7 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   }
 
   // 2. HIGH RISK: Flood exposure + fever + myalgia
-  if (flood_exposure && fever && myalgia) {
+  if (flood && fever && myalgia) {
     const extra: string[] = [];
     if (red_eyes) extra.push("conjunctival suffusion");
     if (headache) extra.push("severe headache");
@@ -74,7 +84,7 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   }
 
   // 3. MODERATE RISK: Flood exposure + fever only
-  if (flood_exposure && fever) {
+  if (flood && fever) {
     return {
       risk_level: "MODERATE",
       recommendation:
@@ -88,7 +98,7 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   }
 
   // 4. LOW RISK: No flood exposure
-  if (!flood_exposure) {
+  if (!flood) {
     return {
       risk_level: "LOW",
       recommendation:

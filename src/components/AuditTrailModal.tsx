@@ -17,6 +17,18 @@ interface AuditTrailModalProps {
   logs: AuditLogEntry[];
 }
 
+function triCell(value: string | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "N/A";
+  if (typeof value === "boolean") return value ? "YES" : "NO";
+  return value.toUpperCase();
+}
+
+function triDisplay(value: string | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "Unknown";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return value === "yes" ? "Yes" : value === "no" ? "No" : "Unknown";
+}
+
 export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
   isOpen,
   onClose,
@@ -61,12 +73,12 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
       `"${l.nurse_id}"`,
       l.result.risk_level,
       l.patient_data.age,
-      l.patient_data.flood_exposure ? "YES" : "NO",
+      triCell(l.patient_data.flood_exposure),
       l.patient_data.flood_days_ago,
-      l.patient_data.fever ? "YES" : "NO",
-      l.patient_data.myalgia ? "YES" : "NO",
-      l.patient_data.jaundice ? "YES" : "NO",
-      l.patient_data.oliguria ? "YES" : "NO",
+      triCell(l.patient_data.fever),
+      triCell(l.patient_data.myalgia),
+      triCell(l.patient_data.jaundice),
+      triCell(l.patient_data.oliguria),
       `"${l.result.recommendation.replace(/"/g, '""')}"`,
       l.synced_to_cloud ? "YES" : "NO",
     ]);
@@ -228,25 +240,26 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
                   </span>
                   <span>
                     <strong>Flood Exposure:</strong>{" "}
-                    {log.patient_data.flood_exposure
-                      ? `Yes (${log.patient_data.flood_days_ago}d ago)`
-                      : "No"}
+                    {triDisplay(log.patient_data.flood_exposure)}
+                    {triDisplay(log.patient_data.flood_exposure) === "Yes"
+                      ? ` (${log.patient_data.flood_days_ago}d ago)`
+                      : ""}
                   </span>
                   <span>
                     <strong>Fever:</strong>{" "}
-                    {log.patient_data.fever ? "Yes" : "No"}
+                    {triDisplay(log.patient_data.fever)}
                   </span>
                   <span>
                     <strong>Calf Myalgia:</strong>{" "}
-                    {log.patient_data.myalgia ? "Yes" : "No"}
+                    {triDisplay(log.patient_data.myalgia)}
                   </span>
                   <span>
                     <strong>Jaundice:</strong>{" "}
-                    {log.patient_data.jaundice ? "YES" : "No"}
+                    {triDisplay(log.patient_data.jaundice)}
                   </span>
                   <span>
                     <strong>Oliguria:</strong>{" "}
-                    {log.patient_data.oliguria ? "YES" : "No"}
+                    {triDisplay(log.patient_data.oliguria)}
                   </span>
                   {log.patient_data.comorbidities && (
                     <span>

@@ -23,7 +23,7 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger("leptowatch.gemini")
 
-from sources import VERIFIED_SOURCES, RULESET_VERSION, SOURCE_REGISTRY
+from sources import VERIFIED_SOURCES, RULESET_VERSION, SOURCE_REGISTRY, tri_label
 
 # Try importing the official google-genai SDK
 try:
@@ -123,14 +123,14 @@ class GeminiTriageClient:
         sources_json = json.dumps(VERIFIED_SOURCES.get("sources", []), indent=2)
 
         prompt = EXPLANATION_PROMPT_TEMPLATE.format(
-            flood_exposure="Yes" if patient_info.get("flood_exposure") else "No",
+            flood_exposure=tri_label(patient_info.get("flood_exposure")),
             flood_days_ago=patient_info.get("flood_days_ago", 7),
-            fever="Yes" if patient_info.get("fever") else "No",
-            myalgia="Yes" if patient_info.get("myalgia") else "No",
-            headache="Yes" if patient_info.get("headache") else "No",
-            red_eyes="Yes" if patient_info.get("red_eyes") else "No",
-            jaundice="Yes" if patient_info.get("jaundice") else "No",
-            oliguria="Yes" if patient_info.get("oliguria") else "No",
+            fever=tri_label(patient_info.get("fever")),
+            myalgia=tri_label(patient_info.get("myalgia")),
+            headache=tri_label(patient_info.get("headache")),
+            red_eyes=tri_label(patient_info.get("red_eyes")),
+            jaundice=tri_label(patient_info.get("jaundice")),
+            oliguria=tri_label(patient_info.get("oliguria")),
             symptom_days=patient_info.get("symptom_days", 2),
             age=patient_info.get("age", 35),
             comorbidities=patient_info.get("comorbidities", "None") or "None",
