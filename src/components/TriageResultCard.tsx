@@ -6,13 +6,13 @@ import {
   CheckCircle2,
   BookOpen,
   Send,
-  Pill,
-  Hospital,
   Sparkles,
   Clock,
   ShieldCheck,
+  HelpCircle,
   UserPlus,
 } from "lucide-react";
+import { SOURCE_REGISTRY } from "../sources";
 
 interface TriageResultCardProps {
   result: TriageResult;
@@ -62,6 +62,15 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
           subtitle: "Flood Exposure with Fever (48-Hour Watch)",
           alertBox: "bg-amber-100/80 border-amber-300 text-amber-950",
         };
+      case "INSUFFICIENT_INFORMATION":
+        return {
+          containerBg: "bg-slate-50 border-slate-300",
+          badgeBg: "bg-slate-600 text-white shadow-slate-200",
+          iconColor: "text-slate-600",
+          title: "INSUFFICIENT INFORMATION",
+          subtitle: "Cannot Safely Classify - Consult Physician",
+          alertBox: "bg-slate-100 border-slate-300 text-slate-950",
+        };
       case "LOW":
       default:
         return {
@@ -92,6 +101,7 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
             {risk === "CRITICAL" && <AlertOctagon className="w-4 h-4" />}
             {risk === "HIGH" && <AlertTriangle className="w-4 h-4" />}
             {risk === "MODERATE" && <Clock className="w-4 h-4" />}
+            {risk === "INSUFFICIENT_INFORMATION" && <HelpCircle className="w-4 h-4" />}
             {risk === "LOW" && <ShieldCheck className="w-4 h-4" />}
             {style.title}
           </span>
@@ -104,22 +114,22 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
           {result.is_ai_generated ? (
             <>
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Gemini 2.0 Flash Co-Pilot</span>
+              <span>Deterministic Engine + Gemini Explanation</span>
             </>
           ) : (
             <>
               <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>DOH 2026 Protocol Engine</span>
+              <span>Deterministic Rule Engine</span>
             </>
           )}
         </div>
       </div>
 
-      {/* Recommendation Text */}
+{/* Recommendation Text */}
       <div className={`p-4 rounded-xl border ${style.alertBox} mb-4`}>
         <h4 className="text-xs font-bold uppercase tracking-wider mb-1.5 text-slate-800 flex items-center gap-1.5">
           <Send className="w-4 h-4" />
-          Mandatory Clinical Action
+          Recommended Action (Referral Guidance)
         </h4>
         <p className="text-sm sm:text-base font-semibold leading-relaxed">
           {result.recommendation}
@@ -136,41 +146,34 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
         </p>
       </div>
 
-      {/* Actionable Clinical Directives for Rural Nurses */}
-      {(risk === "CRITICAL" || risk === "HIGH") && (
+      {/* Gemini Missing Information & Safety Flags (context layer only) */}
+      {result.missing_information && result.missing_information.length > 0 && (
         <div className="bg-white rounded-lg p-3.5 border border-slate-200 mb-4">
-          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
-            <Pill className="w-3.5 h-3.5 text-blue-600" />
-            DOH 2026 Antibiotic &amp; Hospital Referral Protocol
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+            Missing Information
           </h5>
           <ul className="text-xs text-slate-700 space-y-1.5">
-            <li className="flex items-start gap-2">
-              <span className="font-bold text-blue-700">• Doxycycline:</span>
-              <span>
-                Administer 100mg orally twice daily (BID) for 7 days. Take with
-                plenty of water to avoid esophageal irritation. (Contraindicated
-                in pregnant women).
-              </span>
-            </li>
-            {risk === "CRITICAL" && (
-              <li className="flex items-start gap-2 text-rose-700 font-semibold">
-                <Hospital className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>
-                  Immediate Fast Lane Transfer: Contact receiving DOH apex or
-                  provincial hospital leptospirosis fast lane immediately. Ensure
-                  IV hydration if systolic BP &lt;90.
-                </span>
+            {result.missing_information.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-amber-500 font-bold">⚠</span>
+                <span>{item}</span>
               </li>
-            )}
-            {risk === "HIGH" && (
-              <li className="flex items-start gap-2 text-orange-800 font-medium">
-                <Hospital className="w-4 h-4 shrink-0 text-orange-600" />
-                <span>
-                  Urgent Lab Orders: Request Serum Creatinine, CBC with platelet
-                  count, and AST/ALT. Repeat assessment in 24 hours.
-                </span>
+            ))}
+          </ul>
+        </div>
+      )}
+      {result.safety_flags && result.safety_flags.length > 0 && (
+        <div className="bg-white rounded-lg p-3.5 border border-amber-200 mb-4">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-rose-700 mb-2">
+            Safety Flags
+          </h5>
+          <ul className="text-xs text-slate-700 space-y-1.5">
+            {result.safety_flags.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-rose-600 font-bold">🚩</span>
+                <span>{item}</span>
               </li>
-            )}
+            ))}
           </ul>
         </div>
       )}
@@ -180,17 +183,23 @@ export const TriageResultCard: React.FC<TriageResultCardProps> = ({
         <div className="mb-4">
           <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-            Official DOH &amp; WHO Guidelines
+            Verified Sources
           </h5>
-          <div className="flex flex-wrap gap-1.5">
-            {result.citations.map((citation, idx) => (
-              <span
-                key={idx}
-                className="text-xs px-2.5 py-1 bg-white rounded border border-slate-200 text-slate-700 font-medium"
-              >
-                📖 {citation}
-              </span>
-            ))}
+          <div className="flex flex-col gap-1.5">
+            {result.citations.map((citation, idx) => {
+              const src = SOURCE_REGISTRY[citation];
+              const label = src
+                ? `${src.source_id} - ${src.organization}: ${src.title}`
+                : citation;
+              return (
+                <span
+                  key={idx}
+                  className="text-xs px-2.5 py-1 bg-white rounded border border-slate-200 text-slate-700 font-medium"
+                >
+                  📖 {label}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

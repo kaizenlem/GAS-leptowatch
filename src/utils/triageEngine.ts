@@ -1,9 +1,11 @@
 import { PatientFormData, TriageResult } from "../types";
+import { RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW } from "../sources";
 
 /**
- * Deterministic DOH Philippines 2026 Leptospirosis Triage Rule Engine.
- * Ensures strict compliance with Department of Health clinical protocols
- * even during intermittent 3G or total offline connectivity.
+ * Deterministic Leptospirosis Triage Rule Engine.
+ * Rule set derived from verified Philippine DOH and WHO leptospirosis guidance.
+ * Executes client-side even during intermittent 3G or total offline connectivity.
+ * Never prescribes medication or dosing - treatment decisions are referred to the physician.
  */
 export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   const {
@@ -17,6 +19,22 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
     symptom_days,
   } = data;
 
+  // INSUFFICIENT_INFORMATION: flood exposure is the single most decisive factor.
+  const floodKnown = flood_exposure !== null && flood_exposure !== undefined;
+  const feverKnown = fever !== null && fever !== undefined;
+  if (!floodKnown || !feverKnown) {
+    return {
+      risk_level: "INSUFFICIENT_INFORMATION",
+      recommendation:
+        "Insufficient information to safely classify this patient. Confirm flood exposure history and fever status before triage; consult with the physician on duty.",
+      citations: [WHO_GUIDANCE],
+      reasoning:
+        "Flood exposure and fever status are decisive for leptospirosis risk stratification and were not fully recorded.",
+      is_ai_generated: false,
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
+    };
+  }
+
   // 1. CRITICAL RISK: Flood exposure + fever + (jaundice OR oliguria)
   if (flood_exposure && fever && (jaundice || oliguria)) {
     const signs: string[] = [];
@@ -26,16 +44,13 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
     return {
       risk_level: "CRITICAL",
       recommendation:
-        "URGENT: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane.",
-      citations: [
-        "DOH Leptospirosis Fast Lane Protocol 2026",
-        "WHO Severe Leptospirosis Guidelines",
-      ],
+        "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning: `Patient has documented flood exposure, acute fever, and severe organ dysfunction (${signs.join(
         " and "
-      )}). Immediate transfer via DOH fast lane is mandatory.`,
+      )}). Immediate referral via the DOH fast lane is required.`,
       is_ai_generated: false,
-      model_used: "DOH 2026 Protocol Cache (Offline)",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -48,16 +63,13 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
     return {
       risk_level: "HIGH",
       recommendation:
-        "Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding.",
-      citations: [
-        "DOH Leptospirosis Clinical Guidelines 2026",
-        "WHO Case Definition",
-      ],
+        "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning: `Classic triad of flood exposure, fever, and severe myalgia (calves/back)${
         extra.length ? ` with ${extra.join(" and ")}` : ""
-      } within symptom day ${symptom_days} requires prompt therapeutic antibiotic treatment.`,
+      } within symptom day ${symptom_days} requires prompt clinical evaluation.`,
       is_ai_generated: false,
-      model_used: "DOH 2026 Protocol Cache (Offline)",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -66,12 +78,12 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
     return {
       risk_level: "MODERATE",
       recommendation:
-        "Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately. Consider doxycycline prophylaxis per DOH guidelines.",
-      citations: ["DOH Prophylaxis Guidelines 2026"],
+        "Flood exposure with fever. Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately for physician evaluation, including prophylaxis considerations per DOH guidance.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning:
-        "Flood exposure with active fever without overt calf pain or organ signs. Requires close 48-hour ambulatory watch and prophylaxis evaluation.",
+        "Flood exposure with active fever without overt calf pain or organ signs. Requires close 48-hour ambulatory watch and physician evaluation.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Protocol Cache (Offline)",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -81,14 +93,11 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
       risk_level: "LOW",
       recommendation:
         "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
-      citations: [
-        "DOH Primary Care Guidelines",
-        "CDC Leptospirosis Epidemiology",
-      ],
+      citations: [WHO_GUIDANCE, CDC_OVERVIEW],
       reasoning:
         "Absence of contaminated floodwater or animal urine contact in the 2-4 week incubation timeframe makes leptospirosis clinically unlikely.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Protocol Cache (Offline)",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -96,14 +105,11 @@ export function evaluateClientDOHRules(data: PatientFormData): TriageResult {
   return {
     risk_level: "LOW",
     recommendation:
-      "Asymptomatic flood exposure. Health education on symptom watch. Consider single dose doxycycline prophylaxis (200mg) if exposure occurred within 72 hours.",
-    citations: [
-      "DOH Prophylaxis Guidelines 2026",
-      "CDC Leptospirosis Epidemiology",
-    ],
+      "Flood exposure without active fever or systemic symptoms. Health education on symptom watch. Advise physician consultation regarding prophylactic management if exposure occurred recently.",
+    citations: [DOH_FAST_LANE, CDC_OVERVIEW],
     reasoning:
       "Patient reports flood exposure without active fever or systemic symptoms. Educate on warning signs.",
     is_ai_generated: false,
-    model_used: "DOH 2026 Protocol Cache (Offline)",
+    model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
   };
 }

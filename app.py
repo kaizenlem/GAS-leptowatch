@@ -1,8 +1,9 @@
 """
 🏥 LeptoWatch - Leptospirosis Triage
-AI-powered clinical decision support co-pilot for Philippine rural health unit (RHU) nurses.
-Adheres strictly to DOH Philippines 2026 Clinical & Fast Lane Protocols.
-Runs on Google Cloud Run with Firestore audit logging and Gemini 2.0 Flash co-pilot.
+AI-assisted clinical decision support co-pilot for Philippine rural health unit (RHU) nurses.
+Rule set derived from verified Philippine DOH and WHO leptospirosis guidance.
+The deterministic rule engine is authoritative; Gemini adds explanation and context.
+Runs on Google Cloud Run with Firestore audit logging.
 """
 
 import os
@@ -91,7 +92,7 @@ def main():
     # Offline / Online indicator check
     gemini_key_set = bool(os.getenv("GEMINI_API_KEY"))
     if not gemini_key_set:
-        st.warning("⚠️ Offline mode - using cached protocols (AI API key not detected, deterministic DOH 2026 rule engine active)")
+        st.warning("⚠️ Gemini unavailable - using deterministic rule engine only (AI explanation layer disabled)")
 
     with st.expander("ℹ️ Quick Clinical Protocol & Tagalog Translation Guide", expanded=False):
         st.markdown("""
@@ -101,8 +102,8 @@ def main():
         - **Jaundice / Oliguria:** *"Naninilaw ba ang iyong mga mata o balat? Nabawasan ba o kumonti ang iyong pag-ihi?"*
         - **Red eyes:** *"Namumula ba ang iyong mga mata kahit walang muta?"*
         
-        **DOH 2026 Fast Lane Protocol:**
-        Patients presenting with flood history + fever + jaundice or low urine output must be routed immediately to DOH designated hospital fast lanes with pre-transfer Doxycycline 100mg BID.
+        **Referral Guidance:**
+        Patients presenting with flood history + fever + jaundice or low urine output must be routed immediately to DOH designated hospital fast lanes for physician / DOH hospital clinical management. Treatment decisions are made by the attending physician; this tool provides referral guidance only.
         """)
 
     # Nurse identifier (optional for RHU access control)
@@ -117,14 +118,14 @@ def main():
 
     with st.form(key="triage_form"):
         st.markdown("### 1. Exposure History")
-        flood_exposure = st.checkbox("Has the patient waded through floodwater in the last 2–4 weeks?", value=True)
-        flood_days_ago = st.number_input("Days since flood exposure", min_value=0, max_value=30, value=7, step=1)
+        flood_exposure = st.checkbox("Has the patient waded through floodwater in the last 2–4 weeks?", value=False)
+        flood_days_ago = st.number_input("Days since flood exposure (if known)", min_value=0, max_value=30, value=7, step=1)
 
         st.markdown("### 2. Clinical Symptoms")
         col_symp1, col_symp2 = st.columns(2)
         with col_symp1:
-            fever = st.checkbox("Fever", value=True)
-            myalgia = st.checkbox("Severe muscle pain (especially calves/lower back)", value=True)
+            fever = st.checkbox("Fever", value=False)
+            myalgia = st.checkbox("Severe muscle pain (especially calves/lower back)", value=False)
             headache = st.checkbox("Headache", value=False)
         with col_symp2:
             red_eyes = st.checkbox("Red eyes", value=False)
@@ -157,11 +158,12 @@ def main():
             "comorbidities": comorbidities.strip()
         }
 
-        with st.spinner("Analyzing clinical symptoms against DOH 2026 protocols..."):
+        with st.spinner("Analyzing clinical symptoms against verified DOH/WHO guidance..."):
+
             result, was_fallback = assess_patient(patient_payload, use_ai=use_ai_toggle)
 
         if was_fallback and use_ai_toggle:
-            st.warning("⚠️ Offline mode - using cached protocols (AI service was unavailable or offline)")
+            st.warning("⚠️ Gemini explanation unavailable - deterministic rule engine result shown")
 
         st.markdown("---")
         st.subheader("Triage Assessment Result")
@@ -174,6 +176,8 @@ def main():
             badge_html = f'<div class="badge-high">HIGH RISK - SUSPECTED LEPTOSPIROSIS</div>'
         elif risk == "MODERATE":
             badge_html = f'<div class="badge-moderate">MODERATE RISK - MONITOR 48H</div>'
+        elif risk == "INSUFFICIENT_INFORMATION":
+            badge_html = f'<div class="badge-moderate">INSUFFICIENT INFORMATION - CONSULT PHYSICIAN</div>'
         else:
             badge_html = f'<div class="badge-low">LOW RISK - UNLIKELY LEPTOSPIROSIS</div>'
 
@@ -187,11 +191,23 @@ def main():
             st.warning(f"**Action Required:**\n\n{result.recommendation}")
         elif risk == "MODERATE":
             st.info(f"**Action Required:**\n\n{result.recommendation}")
+        elif risk == "INSUFFICIENT_INFORMATION":
+            st.warning(f"**Action Required:**\n\n{result.recommendation}")
         else:
             st.success(f"**Action Required:**\n\n{result.recommendation}")
 
         # Reasoning
         st.markdown(f"**Reasoning:** {result.reasoning}")
+
+        # Missing information / safety flags from Gemini (if any)
+        if result.missing_information:
+            st.markdown("**Missing Information:**")
+            for item in result.missing_information:
+                st.markdown(f"- ⚠️ {item}")
+        if result.safety_flags:
+            st.markdown("**Safety Flags:**")
+            for item in result.safety_flags:
+                st.markdown(f"- 🚩 {item}")
 
         # Citations
         if result.citations:
@@ -238,7 +254,8 @@ def main():
     st.markdown("""
     <div class="disclaimer-box">
         <strong>Medical & Compliance Disclaimer:</strong> For clinical decision support only. Not a substitute for professional medical judgment.
-        Adheres to Philippine Department of Health (DOH) Administrative Orders and WHO Leptospirosis Management Guidelines.
+        Rule set derived from verified Philippine Department of Health (DOH) and WHO leptospirosis guidance.
+        This tool provides referral and risk-stratification guidance only; treatment decisions are made by the attending physician.
         No personally identifiable patient information (PII) is stored or transmitted.
     </div>
     """, unsafe_allow_html=True)

@@ -1,7 +1,9 @@
 """
 Firestore audit logging and protocol caching client for LeptoWatch.
 Provides seamless logging to Google Cloud Firestore with local JSON buffer fallback
-to ensure 100% reliability for rural nurses under intermittent network connectivity.
+to ensure reliable audit capture for rural nurses under intermittent network connectivity.
+This client does NOT store clinical treatment orders or medication dosing - only
+risk-stratified referral guidance derived from verified DOH/WHO sources.
 """
 
 import os
@@ -11,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 from firebase_config import get_firestore_db
+from sources import RULESET_VERSION, DOH_FAST_LANE, WHO_GUIDANCE, CDC_OVERVIEW
 
 logger = logging.getLogger("leptowatch.firestore")
 
@@ -18,47 +21,53 @@ LOCAL_AUDIT_LOG_FILE = "local_triage_audit.json"
 DOH_PROTOCOLS_CACHE_FILE = "doh_protocols_cache.json"
 
 DEFAULT_DOH_PROTOCOLS = {
-    "version": "2026.1",
-    "updated_at": "2026-01-15T00:00:00Z",
+    "version": RULESET_VERSION,
+    "updated_at": "2026-09-06T00:00:00Z",
+    "description": "Risk stratification reference derived from verified Philippine DOH and WHO leptospirosis guidance. Referral guidance only - no medication dosing is prescribed.",
     "protocols": {
         "CRITICAL": {
             "title": "Suspected Severe Leptospirosis / Weil's Disease",
             "criteria": "Floodwater exposure + fever + (jaundice OR oliguria)",
-            "action": "URGENT: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane.",
+            "action": "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
             "citations": [
-                "DOH Leptospirosis Fast Lane Protocol 2026",
-                "WHO Severe Leptospirosis Guidelines"
-            ],
-            "doxycycline_guideline": "100mg orally twice daily (BID) for 7 days or initiate IV penicillin/ceftriaxone if transferring to tertiary center."
+                DOH_FAST_LANE,
+                WHO_GUIDANCE
+            ]
         },
         "HIGH": {
             "title": "Suspected Moderate/High-Risk Leptospirosis",
             "criteria": "Floodwater exposure + fever + myalgia",
-            "action": "Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding.",
+            "action": "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
             "citations": [
-                "DOH Leptospirosis Clinical Guidelines 2026",
-                "WHO Case Definition"
-            ],
-            "doxycycline_guideline": "100mg orally twice daily (BID) for 7 days. Monitor for adverse GI reactions."
+                DOH_FAST_LANE,
+                WHO_GUIDANCE
+            ]
         },
         "MODERATE": {
             "title": "Moderate Risk / Flood Exposure with Fever Only",
             "criteria": "Floodwater exposure + fever only (no myalgia, jaundice, or oliguria)",
-            "action": "Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately. Consider doxycycline prophylaxis per DOH guidelines.",
+            "action": "Flood exposure with fever. Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately for physician evaluation, including prophylaxis considerations per DOH guidance.",
             "citations": [
-                "DOH Prophylaxis Guidelines 2026"
-            ],
-            "doxycycline_guideline": "Post-exposure prophylaxis: Doxycycline 200mg single dose within 24-72 hours of exposure if non-pregnant."
+                DOH_FAST_LANE,
+                WHO_GUIDANCE
+            ]
         },
         "LOW": {
             "title": "Low Risk / Unlikely Leptospirosis",
             "criteria": "No flood exposure in last 2-4 weeks",
             "action": "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
             "citations": [
-                "DOH Primary Care Guidelines",
-                "CDC Leptospirosis Epidemiology"
-            ],
-            "doxycycline_guideline": "No prophylaxis indicated. Advise protective footwear and avoidance of stagnant water."
+                WHO_GUIDANCE,
+                CDC_OVERVIEW
+            ]
+        },
+        "INSUFFICIENT_INFORMATION": {
+            "title": "Cannot Safely Classify",
+            "criteria": "Flood exposure or fever status not recorded",
+            "action": "Insufficient information to safely classify this patient. Confirm flood exposure history and fever status before triage; consult with the physician on duty.",
+            "citations": [
+                WHO_GUIDANCE
+            ]
         }
     }
 }
@@ -79,6 +88,7 @@ def log_triage_decision(
         "patient_data": patient_data,
         "result": result_data,
         "nurse_id": nurse_id or "anonymous",
+        "ruleset_version": RULESET_VERSION,
         "synced_to_cloud": False
     }
 

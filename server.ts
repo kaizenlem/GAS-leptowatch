@@ -3,6 +3,15 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import {
+  RULESET_VERSION,
+  DOH_FAST_LANE,
+  WHO_GUIDANCE,
+  CDC_OVERVIEW,
+  VERIFIED_SOURCES,
+  SOURCE_REGISTRY,
+} from "./src/sources";
+import type { TriageResult } from "./src/types";
 
 dotenv.config();
 
@@ -29,15 +38,19 @@ interface AuditLog {
     comorbidities: string;
   };
   result: {
-    risk_level: "CRITICAL" | "HIGH" | "MODERATE" | "LOW";
+    risk_level: "CRITICAL" | "HIGH" | "MODERATE" | "LOW" | "INSUFFICIENT_INFORMATION";
     recommendation: string;
     citations: string[];
     reasoning: string;
     is_ai_generated: boolean;
     model_used?: string;
+    missing_information?: string[];
+    safety_flags?: string[];
+    ai_commentary?: string;
   };
   nurse_id: string;
   synced_to_cloud: boolean;
+  ruleset_version?: string;
 }
 
 const auditLogs: AuditLog[] = [
@@ -60,18 +73,16 @@ const auditLogs: AuditLog[] = [
     result: {
       risk_level: "HIGH",
       recommendation:
-        "Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding.",
-      citations: [
-        "DOH Leptospirosis Clinical Guidelines 2026",
-        "WHO Case Definition",
-      ],
+        "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning:
-        "Floodwater exposure with fever, calf pain, and conjunctival suffusion meets DOH criteria for active moderate/high-risk leptospirosis.",
+        "Floodwater exposure with fever, calf pain, and conjunctival suffusion meets criteria for suspected active leptospirosis.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     },
     nurse_id: "RHU-Bulacan-01",
     synced_to_cloud: true,
+    ruleset_version: RULESET_VERSION,
   },
   {
     id: "seed-log-2",
@@ -92,22 +103,20 @@ const auditLogs: AuditLog[] = [
     result: {
       risk_level: "CRITICAL",
       recommendation:
-        "URGENT: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane.",
-      citations: [
-        "DOH Leptospirosis Fast Lane Protocol 2026",
-        "WHO Severe Leptospirosis Guidelines",
-      ],
+        "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning:
         "Patient exhibits severe systemic involvement (jaundice and oliguria) following floodwater contact, indicating acute renal and hepatic compromise.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     },
     nurse_id: "RHU-Marikina-03",
     synced_to_cloud: true,
+    ruleset_version: RULESET_VERSION,
   },
 ];
 
-// DOH Philippines 2026 Rule-Based Assessment
+// Deterministic Leptospirosis Triage Rule Engine (authoritative). Referral guidance only.
 function evaluateDOHRules(data: AuditLog["patient_data"]) {
   const {
     flood_exposure,
@@ -120,6 +129,22 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
     symptom_days,
   } = data;
 
+  const floodKnown = flood_exposure !== null && flood_exposure !== undefined;
+  const feverKnown = fever !== null && fever !== undefined;
+
+  if (!floodKnown || !feverKnown) {
+    return {
+      risk_level: "INSUFFICIENT_INFORMATION" as const,
+      recommendation:
+        "Insufficient information to safely classify this patient. Confirm flood exposure history and fever status before triage; consult with the physician on duty.",
+      citations: [WHO_GUIDANCE],
+      reasoning:
+        "Flood exposure and fever status are decisive for leptospirosis risk stratification and were not fully recorded.",
+      is_ai_generated: false,
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
+    };
+  }
+
   // 1. CRITICAL RISK: Flood exposure + fever + (jaundice OR oliguria)
   if (flood_exposure && fever && (jaundice || oliguria)) {
     const signs = [];
@@ -129,16 +154,13 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
     return {
       risk_level: "CRITICAL" as const,
       recommendation:
-        "URGENT: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane.",
-      citations: [
-        "DOH Leptospirosis Fast Lane Protocol 2026",
-        "WHO Severe Leptospirosis Guidelines",
-      ],
+        "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning: `Patient has documented flood exposure, acute fever, and red flag organ dysfunction (${signs.join(
         " and "
-      )}). Immediate hospital transfer via DOH fast lane is mandatory.`,
+      )}). Immediate referral via the DOH fast lane is required.`,
       is_ai_generated: false,
-      model_used: "DOH 2026 Clinical Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -151,16 +173,13 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
     return {
       risk_level: "HIGH" as const,
       recommendation:
-        "Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding.",
-      citations: [
-        "DOH Leptospirosis Clinical Guidelines 2026",
-        "WHO Case Definition",
-      ],
+        "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning: `Classic triad of flood exposure, fever, and severe myalgia (calves/back)${
         extra.length ? ` accompanied by ${extra.join(" and ")}` : ""
-      } within symptom day ${symptom_days} requires prompt therapeutic antibiotic treatment.`,
+      } within symptom day ${symptom_days} requires prompt clinical evaluation.`,
       is_ai_generated: false,
-      model_used: "DOH 2026 Clinical Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -169,12 +188,12 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
     return {
       risk_level: "MODERATE" as const,
       recommendation:
-        "Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately. Consider doxycycline prophylaxis per DOH guidelines.",
-      citations: ["DOH Prophylaxis Guidelines 2026"],
+        "Flood exposure with fever. Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately for physician evaluation, including prophylaxis considerations per DOH guidance.",
+      citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       reasoning:
-        "Flood exposure with active fever without overt myalgia or organ failure signs. Requires close 48h observation and consideration for post-exposure prophylaxis.",
+        "Flood exposure with active fever without overt myalgia or organ failure signs. Requires close 48h observation and physician evaluation.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Clinical Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -184,14 +203,11 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
       risk_level: "LOW" as const,
       recommendation:
         "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
-      citations: [
-        "DOH Primary Care Guidelines",
-        "CDC Leptospirosis Epidemiology",
-      ],
+      citations: [WHO_GUIDANCE, CDC_OVERVIEW],
       reasoning:
         "Lack of floodwater contact in the 2-4 week incubation timeframe makes leptospirosis clinically unlikely.",
       is_ai_generated: false,
-      model_used: "DOH 2026 Clinical Rule Engine",
+      model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
     };
   }
 
@@ -199,15 +215,12 @@ function evaluateDOHRules(data: AuditLog["patient_data"]) {
   return {
     risk_level: "LOW" as const,
     recommendation:
-      "Asymptomatic flood exposure. Health education on symptom watch. Consider single dose doxycycline prophylaxis (200mg) if exposure occurred within 72 hours.",
-    citations: [
-      "DOH Prophylaxis Guidelines 2026",
-      "CDC Leptospirosis Epidemiology",
-    ],
+      "Flood exposure without active fever or systemic symptoms. Health education on symptom watch. Advise physician consultation regarding prophylactic management if exposure occurred recently.",
+    citations: [DOH_FAST_LANE, CDC_OVERVIEW],
     reasoning:
       "Patient reports flood exposure without active fever or systemic symptoms. Educate on warning signs.",
     is_ai_generated: false,
-    model_used: "DOH 2026 Clinical Rule Engine",
+    model_used: `Deterministic Rule Engine v${RULESET_VERSION}`,
   };
 }
 
@@ -241,25 +254,27 @@ async function callGeminiTriageWithFallback(
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              risk_level: {
-                type: Type.STRING,
-                description: "One of: CRITICAL, HIGH, MODERATE, LOW",
-              },
-              recommendation: {
-                type: Type.STRING,
-                description: "Specific actionable guidance for the nurse",
-              },
-              citations: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Official DOH and WHO guideline citations",
-              },
               reasoning: {
                 type: Type.STRING,
-                description: "1-2 sentences clinical justification",
+                description: "Explain the supplied deterministic risk level in 1-3 sentences",
+              },
+              missing_information: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Important missing clinical information that would improve the assessment",
+              },
+              safety_flags: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Safety concerns or contradictions in the inputs",
+              },
+              protocol_references: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "source_ids from the verified sources list ONLY",
               },
             },
-            required: ["risk_level", "recommendation", "citations", "reasoning"],
+            required: ["reasoning", "missing_information", "safety_flags", "protocol_references"],
           },
         },
       });
@@ -307,50 +322,52 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     service: "LeptoWatch Triage Co-Pilot",
-    version: "2026.1",
+    ruleset_version: RULESET_VERSION,
     timestamp: new Date().toISOString(),
     ai_available: Boolean(process.env.GEMINI_API_KEY),
   });
 });
 
-// DOH Protocols Cache Endpoint
+// Verified Protocols Cache Endpoint
 app.get("/api/doh-protocols", (req, res) => {
   res.json({
-    version: "2026.1",
-    title: "Philippine DOH Leptospirosis Clinical & Fast Lane Protocols 2026",
+    ruleset_version: RULESET_VERSION,
+    title: "LeptoWatch risk stratification reference (derived from verified Philippine DOH and WHO leptospirosis guidance)",
+    sources: VERIFIED_SOURCES.sources,
     protocols: {
       CRITICAL: {
         criteria: "Flood exposure + fever + (jaundice OR oliguria)",
-        action:
-          "URGENT: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane.",
+        action: "URGENT: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. Do not delay transfer.",
         citations: [
-          "DOH Leptospirosis Fast Lane Protocol 2026",
-          "WHO Severe Leptospirosis Guidelines",
+          DOH_FAST_LANE,
+          WHO_GUIDANCE,
         ],
       },
       HIGH: {
         criteria: "Flood exposure + fever + myalgia",
-        action:
-          "Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding.",
+        action: "Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, and bleeding; follow DOH fast lane referral process.",
         citations: [
-          "DOH Leptospirosis Clinical Guidelines 2026",
-          "WHO Case Definition",
+          DOH_FAST_LANE,
+          WHO_GUIDANCE,
         ],
       },
       MODERATE: {
         criteria: "Flood exposure + fever only",
-        action:
-          "Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately. Consider doxycycline prophylaxis per DOH guidelines.",
-        citations: ["DOH Prophylaxis Guidelines 2026"],
+        action: "Flood exposure with fever. Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately for physician evaluation, including prophylaxis considerations per DOH guidance.",
+        citations: [DOH_FAST_LANE, WHO_GUIDANCE],
       },
       LOW: {
         criteria: "No flood exposure",
-        action:
-          "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
+        action: "Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2-30 days.",
         citations: [
-          "DOH Primary Care Guidelines",
-          "CDC Leptospirosis Epidemiology",
+          WHO_GUIDANCE,
+          CDC_OVERVIEW,
         ],
+      },
+      INSUFFICIENT_INFORMATION: {
+        criteria: "Flood exposure or fever status not recorded",
+        action: "Insufficient information to safely classify this patient. Confirm flood exposure history and fever status before triage; consult with the physician on duty.",
+        citations: [WHO_GUIDANCE],
       },
     },
   });
@@ -367,20 +384,30 @@ app.post("/api/triage", async (req, res) => {
       return res.status(400).json({ error: "Missing patient_data object" });
     }
 
-    // Always compute deterministic DOH 2026 rule result
+    // Always compute deterministic rule result (authoritative)
     const ruleResult = evaluateDOHRules(patientData);
 
-    let finalResult = ruleResult;
+    let finalResult: TriageResult = ruleResult;
     let usedAi = false;
 
     const ai = getGeminiClient();
 
     if (requestedAi && ai) {
       try {
-        const prompt = `You are a clinical decision support assistant for rural Philippine health nurses.
-Use DOH leptospirosis guidelines to assess risk.
+        const sourcesJson = JSON.stringify(VERIFIED_SOURCES.sources, null, 2);
+        const prompt = `You are the explanation and clinical-context layer of LeptoWatch, a triage co-pilot for Philippine rural health unit (RHU) nurses.
 
-Patient Information:
+IMPORTANT:
+The deterministic clinical rules engine is authoritative for risk classification and escalation. You must NOT change the risk level, downgrade an escalation, invent a diagnosis, prescribe medication or dosage, or invent clinical guidelines or citations.
+
+Your role is to:
+1. Explain the deterministic result in concise, plain language for a rural nurse.
+2. Identify relevant symptoms and risk factors present in the inputs.
+3. Identify important missing information.
+4. Flag safety concerns.
+5. Reference ONLY the verified protocol sources below, by their source_id.
+
+PATIENT INPUT:
 - Flood exposure: ${patientData.flood_exposure ? "Yes" : "No"}
 - Days since flood: ${patientData.flood_days_ago}
 - Fever: ${patientData.fever ? "Yes" : "No"}
@@ -393,69 +420,46 @@ Patient Information:
 - Age: ${patientData.age}
 - Comorbidities: ${patientData.comorbidities || "None"}
 
-Based on DOH guidelines, provide:
-1. Risk level: CRITICAL, HIGH, MODERATE, or LOW
-2. Recommendation (actionable for a rural nurse)
-3. Citations (DOH/WHO guidelines)
-4. Reasoning (1-2 sentences)
+DETERMINISTIC RESULT (authoritative):
+- Risk level: ${ruleResult.risk_level}
+- Recommendation: ${ruleResult.recommendation}
 
-Format as JSON.`;
+VERIFIED SOURCES (ONLY these may be referenced, by source_id):
+${sourcesJson}
+
+Return ONLY JSON with exact keys: reasoning, missing_information, safety_flags, protocol_references.`;
 
         const { text, modelUsed } = await callGeminiTriageWithFallback(ai, prompt);
 
         if (text) {
           const parsed = JSON.parse(text);
-          let risk = String(parsed.risk_level || "").toUpperCase();
-          if (!["CRITICAL", "HIGH", "MODERATE", "LOW"].includes(risk)) {
-            risk = ruleResult.risk_level;
-          }
+          const validatedRefs = (Array.isArray(parsed.protocol_references) ? parsed.protocol_references : [])
+            .filter((r: string) => r && Object.prototype.hasOwnProperty.call(SOURCE_REGISTRY, r));
 
-          // Clinical guardrail: AI must never downgrade deterministic DOH safety rule
-          const severityRanks: Record<string, number> = {
-            LOW: 1,
-            MODERATE: 2,
-            HIGH: 3,
-            CRITICAL: 4,
+          finalResult = {
+            ...ruleResult,
+            reasoning: `${parsed.reasoning || ruleResult.reasoning} ${ruleResult.reasoning}`.trim(),
+            missing_information: Array.isArray(parsed.missing_information)
+              ? parsed.missing_information.map(String)
+              : [],
+            safety_flags: Array.isArray(parsed.safety_flags)
+              ? parsed.safety_flags.map(String)
+              : [],
+            ai_commentary: String(parsed.reasoning || ""),
+            is_ai_generated: true,
+            model_used: `${ruleResult.model_used} + ${modelUsed}`,
           };
-          const ruleRank = severityRanks[ruleResult.risk_level] || 1;
-          const aiRank = severityRanks[risk] || 1;
-
-          if (ruleRank > aiRank) {
-            // Apply safety override
-            finalResult = {
-              risk_level: ruleResult.risk_level,
-              recommendation: ruleResult.recommendation,
-              citations: Array.from(
-                new Set([...ruleResult.citations, ...(parsed.citations || [])])
-              ),
-              reasoning: `[Clinical Guardrail Applied] ${ruleResult.reasoning} ${parsed.reasoning || ""}`,
-              is_ai_generated: true,
-              model_used: `${modelUsed} + DOH Guardrail`,
-            };
-          } else {
-            finalResult = {
-              risk_level: risk as any,
-              recommendation: parsed.recommendation || ruleResult.recommendation,
-              citations:
-                parsed.citations && parsed.citations.length > 0
-                  ? parsed.citations
-                  : ruleResult.citations,
-              reasoning: parsed.reasoning || ruleResult.reasoning,
-              is_ai_generated: true,
-              model_used: modelUsed,
-            };
+          if (validatedRefs.length > 0) {
+            finalResult.citations = Array.from(
+              new Set([...ruleResult.citations, ...validatedRefs])
+            );
           }
           usedAi = true;
         }
       } catch (aiErr: any) {
         console.info(
-          "AI service at peak demand; activated verified deterministic DOH 2026 rule engine"
+          "AI layer at peak demand; showing deterministic rule engine result"
         );
-        finalResult = {
-          ...ruleResult,
-          reasoning: `${ruleResult.reasoning} (Verified DOH 2026 clinical protocol active).`,
-          model_used: "DOH 2026 Clinical Rule Engine (Active Fallback)",
-        };
       }
     }
 
@@ -467,6 +471,7 @@ Format as JSON.`;
       result: finalResult,
       nurse_id: nurseId,
       synced_to_cloud: true,
+      ruleset_version: RULESET_VERSION,
     };
 
     auditLogs.unshift(newLog);

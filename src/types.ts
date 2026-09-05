@@ -1,4 +1,9 @@
-export type RiskLevel = "CRITICAL" | "HIGH" | "MODERATE" | "LOW";
+export type RiskLevel =
+  | "CRITICAL"
+  | "HIGH"
+  | "MODERATE"
+  | "LOW"
+  | "INSUFFICIENT_INFORMATION";
 
 export interface PatientFormData {
   flood_exposure: boolean;
@@ -21,6 +26,9 @@ export interface TriageResult {
   reasoning: string;
   is_ai_generated: boolean;
   model_used?: string;
+  missing_information?: string[];
+  safety_flags?: string[];
+  ai_commentary?: string;
 }
 
 export interface AuditLogEntry {
@@ -30,11 +38,11 @@ export interface AuditLogEntry {
   result: TriageResult;
   nurse_id: string;
   synced_to_cloud: boolean;
+  ruleset_version?: string;
 }
 
 export interface DOHProtocolItem {
   criteria: string;
   action: string;
   citations: string[];
-  doxycycline_guideline?: string;
 }

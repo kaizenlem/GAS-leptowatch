@@ -6,6 +6,7 @@ import { AuditTrailModal } from "./components/AuditTrailModal";
 import { NurseGuideModal } from "./components/NurseGuideModal";
 import { DeliverablesModal } from "./components/DeliverablesModal";
 import { evaluateClientDOHRules } from "./utils/triageEngine";
+import { RULESET_VERSION, VERIFIED_SOURCES } from "./sources";
 import {
   Hospital,
   AlertTriangle,
@@ -222,11 +223,11 @@ export default function App() {
           <div className="flex items-center gap-2 font-medium">
             <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
             <span className="text-slate-300">
-              Philippine Leptospirosis Surveillance 2026:
+              Philippine Leptospirosis Surveillance:
             </span>
             <strong className="text-rose-400">6,253 Cases | 378 Deaths</strong>
             <span className="hidden sm:inline text-slate-400">
-              (DOH Epidemiology Bureau)
+              (DOH Epidemiology Bureau, latest season)
             </span>
           </div>
 
@@ -260,7 +261,7 @@ export default function App() {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                 LeptoWatch - Leptospirosis Triage
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
-                  DOH 2026
+                  Ver {RULESET_VERSION}
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 font-medium">
@@ -346,13 +347,13 @@ export default function App() {
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold">
-                ⚠️ Offline mode - using cached protocols
+                📴 Degraded mode - deterministic rules active
               </p>
               <p className="text-amber-800 mt-0.5">
-                The app is operating in resilient standalone mode. All risk
-                stratification is executed instantly using local DOH 2026 rules.
-                Decisions are buffered locally and will sync once internet
-                resumes.
+                Gemini explanation and Cloud Firestore are unreachable. Risk
+                stratification continues using locally cached deterministic
+                rules. Decisions are buffered locally and will sync once
+                internet resumes.
               </p>
             </div>
           </div>
@@ -385,7 +386,7 @@ export default function App() {
         <div className="mt-8 p-4 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 shadow-xs">
           <h4 className="font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-blue-600" />
-            Philippine DOH 2026 Triage Reference Summary
+            Verified DOH &amp; WHO Triage Reference Summary
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
             <div className="p-2.5 bg-rose-50 rounded-lg border border-rose-100">
@@ -393,9 +394,9 @@ export default function App() {
                 🔴 CRITICAL RISK
               </strong>
               <span>
-                Flood exposure + fever + (jaundice OR oliguria). Suspected Weil&apos;s
-                disease. Administer Doxycycline 100mg BID and transfer via DOH Fast
-                Lane immediately.
+                Flood exposure + fever + (jaundice OR oliguria). Suspected
+                Weil&apos;s disease. Refer immediately via DOH Fast Lane for
+                physician / hospital clinical management.
               </span>
             </div>
             <div className="p-2.5 bg-orange-50 rounded-lg border border-orange-100">
@@ -403,8 +404,9 @@ export default function App() {
                 🟠 HIGH RISK
               </strong>
               <span>
-                Flood exposure + fever + severe calf/back pain. Administer Doxycycline
-                100mg BID. Order CBC, Creatinine, LFTs. Monitor daily.
+                Flood exposure + fever + severe calf/back pain. Refer for
+                physician evaluation and labs (CBC, Creatinine, LFTs). Monitor
+                daily.
               </span>
             </div>
             <div className="p-2.5 bg-yellow-50 rounded-lg border border-yellow-100">
@@ -412,8 +414,9 @@ export default function App() {
                 🟡 MODERATE RISK
               </strong>
               <span>
-                Flood exposure + fever only. Monitor 48 hours. Consider post-exposure
-                Doxycycline 200mg single-dose prophylaxis per guidelines.
+                Flood exposure + fever only. Monitor 48 hours. Return for
+                physician evaluation, including prophylaxis considerations per
+                DOH guidance.
               </span>
             </div>
             <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
@@ -421,8 +424,8 @@ export default function App() {
                 🟢 LOW RISK
               </strong>
               <span>
-                No flood exposure in last 2–4 weeks. Likely non-leptospirosis viral
-                illness. Supportive home care (paracetamol, fluids).
+                No flood exposure in last 2–4 weeks. Likely non-leptospirosis
+                viral illness. Supportive home care (paracetamol, fluids).
               </span>
             </div>
           </div>
@@ -435,10 +438,12 @@ export default function App() {
           </p>
           <p>
             For clinical decision support only. Not a substitute for professional
-            medical judgment. Formulated strictly according to Philippine
-            Department of Health (DOH) leptospirosis management protocols and WHO
-            Severe Leptospirosis Guidelines. No patient identifying information
-            (name, address, telephone) is stored.
+            medical judgment. Rule set derived from verified Philippine
+            Department of Health (DOH) and WHO leptospirosis guidance (sources
+            {VERIFIED_SOURCES.sources.map((s) => ` ${s.source_id}`).join(",")}).
+            This tool provides referral and risk-stratification guidance only;
+            treatment decisions are made by the attending physician. No patient
+            identifying information (name, address, telephone) is stored.
           </p>
         </div>
       </main>

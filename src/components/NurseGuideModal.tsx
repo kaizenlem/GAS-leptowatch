@@ -2,10 +2,8 @@ import React from "react";
 import {
   X,
   Languages,
-  Pill,
+  Hospital,
   AlertTriangle,
-  HeartPulse,
-  BookOpen,
 } from "lucide-react";
 
 interface NurseGuideModalProps {
@@ -31,7 +29,7 @@ export const NurseGuideModal: React.FC<NurseGuideModalProps> = ({
                 RHU Nurse Clinical &amp; Translation Guide
               </h3>
               <p className="text-xs text-slate-500">
-                Philippine DOH 2026 Guidelines &amp; Patient Interview Screening
+                Verified Philippine DOH &amp; WHO leptospirosis guidance &amp; Patient Interview Screening
               </p>
             </div>
           </div>
@@ -99,50 +97,43 @@ export const NurseGuideModal: React.FC<NurseGuideModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Doxycycline Guidelines */}
+          {/* Section 2: Referral Guidance (no dosing) */}
           <div>
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2.5 flex items-center gap-2 text-emerald-800">
-              <Pill className="w-4 h-4 text-emerald-600" />
-              DOH 2026 Doxycycline Dosing Reference Card
+            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2.5 flex items-center gap-2 text-blue-800">
+              <Hospital className="w-4 h-4 text-blue-600" />
+              Referral &amp; Escalation Guidance
             </h4>
-            <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
-              <div className="grid grid-cols-3 bg-slate-100 font-bold p-2.5 text-slate-800 border-b border-slate-200">
-                <div>Indication</div>
-                <div>Regimen</div>
-                <div>Precaution</div>
+            <div className="space-y-2">
+              <div className="p-3 bg-blue-50/70 rounded-lg border border-blue-100 text-xs">
+                <p className="font-semibold text-blue-950 mb-1">
+                  🔴 CRITICAL — Suspected severe leptospirosis / Weil&apos;s disease
+                </p>
+                <p className="text-blue-900 leading-relaxed">
+                  Flood exposure + fever + (jaundice OR oliguria). Route
+                  immediately to a DOH-designated leptospirosis fast lane for
+                  physician / hospital clinical management. Do not delay
+                  transfer.
+                </p>
               </div>
-              <div className="grid grid-cols-3 p-2.5 border-b border-slate-100 bg-white">
-                <div className="font-semibold text-slate-900">
-                  Therapeutic Treatment (Suspected Leptospirosis)
-                </div>
-                <div className="font-mono text-blue-700">
-                  Doxycycline 100mg BID x 7 days
-                </div>
-                <div className="text-slate-600">
-                  Take with full glass of water after food.
-                </div>
+              <div className="p-3 bg-orange-50/70 rounded-lg border border-orange-100 text-xs">
+                <p className="font-semibold text-orange-950 mb-1">
+                  🟠 HIGH — Suspected active leptospirosis
+                </p>
+                <p className="text-orange-900 leading-relaxed">
+                  Flood exposure + fever + severe myalgia. Refer for physician
+                  evaluation and laboratory testing (CBC, creatinine, liver
+                  function). Monitor for jaundice, oliguria, and bleeding.
+                </p>
               </div>
-              <div className="grid grid-cols-3 p-2.5 border-b border-slate-100 bg-slate-50">
-                <div className="font-semibold text-slate-900">
-                  Post-Exposure Prophylaxis (Moderate / Low Risk)
-                </div>
-                <div className="font-mono text-emerald-700">
-                  Doxycycline 200mg single dose
-                </div>
-                <div className="text-slate-600">
-                  Take within 24–72 hours of floodwater exposure.
-                </div>
-              </div>
-              <div className="grid grid-cols-3 p-2.5 bg-rose-50/50">
-                <div className="font-semibold text-rose-900">
-                  Absolute Contraindications
-                </div>
-                <div className="text-rose-800">
-                  Pregnant or lactating mothers, children &lt;8 years
-                </div>
-                <div className="text-rose-700">
-                  Use Amoxicillin (500mg TID) or Azithromycin as alternative.
-                </div>
+              <div className="p-3 bg-amber-50/70 rounded-lg border border-amber-100 text-xs">
+                <p className="font-semibold text-amber-950 mb-1">
+                  🟡 MODERATE — Flood exposure with fever only
+                </p>
+                <p className="text-amber-900 leading-relaxed">
+                  Monitor closely for 48 hours. If symptoms worsen, return for
+                  physician evaluation, including prophylaxis considerations per
+                  DOH guidance.
+                </p>
               </div>
             </div>
           </div>

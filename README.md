@@ -2,60 +2,87 @@
 
 > **Google Cloud "Meet the Builders" Campaign Submission**  
 > *Builder Story: "Enterprise decision systems → rural nurse triage"*  
-> Designed for Philippine Rural Health Unit (RHU) nurses facing 6,253 leptospirosis cases and 378 deaths in flood-prone communities.
+> Designed for Philippine Rural Health Unit (RHU) nurses facing leptospirosis cases and deaths in flood-prone communities.
+
+---
+
+## ⚠️ Clinical Safety Notice
+
+**LeptoWatch is a referral and risk-stratification decision support tool. It does NOT prescribe medication or dosing.** The deterministic rule engine issues referral guidance only; all treatment decisions are made by the attending physician. Every citation traces to a verified source in [`protocols/leptospirosis_sources.json`](protocols/leptospirosis_sources.json).
 
 ---
 
 ## 📌 Problem & Context
 In Philippine rural municipalities, a single RHU nurse often serves a population of **5,000 to 10,000 residents**. During monsoon and typhoon seasons, floods expose thousands of agricultural and urban-poor families to *Leptospira*-contaminated floodwaters.
 
-Early symptoms are notoriously deceptive and easily mistaken for common viral flu or dengue (fever, body aches, headache). Missing the early 48-hour window risks rapid progression to **Weil's disease** (acute renal failure, hepatic jaundice, pulmonary hemorrhage) with fatal outcomes.
+Early symptoms are notoriously deceptive and easily mistaken for common viral flu or dengue (fever, body aches, headache). Missing the early window risks rapid progression to **Weil's disease** (acute renal failure, hepatic jaundice, pulmonary hemorrhage) with fatal outcomes.
 
-**LeptoWatch** provides rural nurses with an AI-augmented decision support co-pilot that:
-1. Instantly stratifies risk (**CRITICAL**, **HIGH**, **MODERATE**, **LOW**) using Department of Health (DOH) Philippines 2026 Clinical Protocols.
-2. Employs **Gemini 2.0 Flash** for nuanced reasoning on symptom duration, comorbidities, and incubation timelines.
-3. Automatically enforces strict deterministic **clinical guardrails** so safety-critical cases (e.g. jaundice or oliguria) can never be downgraded.
-4. Maintains an immutable audit trail in **Google Cloud Firestore** for epidemiological monitoring and quality assurance without storing sensitive patient PII.
-5. Works seamlessly on low-end Android mobile phones over intermittent 3G or offline conditions using cached DOH protocols.
+**LeptoWatch** provides rural nurses with an AI-assisted decision support co-pilot that:
+1. Instantly stratifies risk (**CRITICAL**, **HIGH**, **MODERATE**, **LOW**, **INSUFFICIENT_INFORMATION**) using a deterministic rule engine derived from verified Philippine DOH and WHO leptospirosis guidance.
+2. Employs **Gemini** as an *explanation layer only* — it explains the deterministic result, flags missing information, and surfaces safety concerns. It can never change the risk level.
+3. Enforces strict deterministic **clinical guardrails** so safety-critical cases (e.g. jaundice or oliguria) are never downgraded.
+4. Records a traceable audit trail in **Google Cloud Firestore** for epidemiological monitoring and quality assurance without storing sensitive patient PII — including ruleset version and model pedigree.
+5. Supports **degraded operation** using locally cached deterministic rules when Gemini or Firestore is unavailable.
 
 ---
 
 ## 🏗️ Architecture & Google Cloud Tech Stack
 
 ```
-   [ Low-End Android Phone / 3G Browser ]
-                      │
-                      ▼
-     ┌──────────────────────────────────┐
-     │   Google Cloud Run (asia-se1)    │
-     │      (Streamlit Python 3.11)     │
-     └─────────────────┬────────────────┘
-                       │
-       ┌───────────────┴────────────────┐
-       ▼                                ▼
-┌───────────────┐              ┌─────────────────┐
-│ Gemini 2.0    │              │ Cloud Firestore │
-│ Flash API     │              │ Audit Logs &    │
-│ (AI Studio)   │              │ Protocol Cache  │
-└───────────────┘              └─────────────────┘
+                 RHU NURSE
+                     │
+                     ▼
+              Clinical Inputs
+                     │
+                     ▼
+        ┌─────────────────────────┐
+        │ Deterministic Rule      │
+        │ Engine                  │
+        │                         │
+        │ AUTHORITATIVE           │
+        │ risk classification     │
+        └────────────┬────────────┘
+                     │
+              risk + context
+                     │
+                     ▼
+        ┌─────────────────────────┐
+        │ Gemini                  │
+        │                         │
+        │ Explanation             │
+        │ Context                 │
+        │ Missing information     │
+        │ Protocol interpretation │
+        └────────────┬────────────┘
+                     │
+                     ▼
+              Nurse Decision
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+      Firestore             Local Queue
+      Audit Trail           if offline
 ```
 
-- **Frontend & App Engine**: Streamlit (Python) - Single-screen, high-contrast, responsive for low-end Android smartphones.
-- **AI Co-Pilot**: Google Gemini 2.0 Flash (`@google/genai`) for fast, low-latency reasoning and clinical explanations.
-- **Clinical Safety Rules**: Deterministic rule-based engine strictly implementing Philippine DOH 2026 Guidelines.
+- **Frontend**: Streamlit (Python) or the bundled React PWA — single-screen, high-contrast, responsive for low-end Android smartphones.
+- **AI Explanation Layer**: Google Gemini (`@google/genai`) for low-latency, non-authoritative explanation and clinical context. Gemini is given ONLY the verified source registry and is instructed never to invent guidelines, citations, diagnoses, or medication dosing.
+- **Clinical Safety Rules**: Deterministic rule-based engine derived from verified Philippine DOH and WHO leptospirosis guidance. Risk level is always authoritative.
 - **Audit & Persistence**: Google Cloud Firestore (`triage_logs` collection) with local JSON buffer fallback during connectivity blackouts.
 - **Container Hosting**: Google Cloud Run (containerized, auto-scaling to zero, deployed in `asia-southeast1`).
 
 ---
 
-## 📋 Triage Risk Matrix (DOH Philippines 2026 Guidelines)
+## 📋 Triage Risk Matrix (referral guidance only)
 
-| Risk Level | Clinical Criteria | Mandatory Action | Citations |
+| Risk Level | Clinical Criteria | Referral Guidance | Verified Sources |
 | :--- | :--- | :--- | :--- |
-| 🔴 **CRITICAL** | Flood exposure + fever + (**jaundice** OR **oliguria**) | **URGENT**: Suspected Weil's disease. Administer doxycycline 100mg BID. Refer immediately to DOH hospital with leptospirosis fast lane. | DOH Leptospirosis Fast Lane Protocol 2026, WHO Severe Guidelines |
-| 🟠 **HIGH** | Flood exposure + fever + **severe myalgia** (calves/lower back) | Suspected leptospirosis. Administer doxycycline 100mg BID. Refer for labs (CBC, creatinine, LFT). Monitor for jaundice, oliguria, bleeding. | DOH Leptospirosis Clinical Guidelines 2026, WHO Case Definition |
-| 🟡 **MODERATE** | Flood exposure + fever only (no myalgia/jaundice/oliguria) | Monitor closely for 48 hours. If symptoms worsen (myalgia, red eyes, jaundice), return immediately. Consider doxycycline prophylaxis per DOH guidelines. | DOH Prophylaxis Guidelines 2026 |
-| 🟢 **LOW** | No flood exposure in last 2–4 weeks | Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2–30 days. | DOH Primary Care Guidelines, CDC Epidemiology |
+| 🔴 **CRITICAL** | Flood exposure + fever + (**jaundice** OR **oliguria**) | **URGENT**: Suspected severe leptospirosis (Weil's disease). Refer immediately for physician / DOH hospital clinical management via the leptospirosis fast lane. | DOH-LEPTO-001, WHO-LEPTO-001 |
+| 🟠 **HIGH** | Flood exposure + fever + **severe myalgia** (calves/lower back) | Suspected leptospirosis. Refer for physician evaluation and laboratory testing (CBC, creatinine, liver function). Monitor for jaundice, oliguria, bleeding. | DOH-LEPTO-001, WHO-LEPTO-001 |
+| 🟡 **MODERATE** | Flood exposure + fever only (no myalgia/jaundice/oliguria) | Monitor closely for 48 hours; return if symptoms worsen for physician evaluation, including prophylaxis considerations per DOH guidance. | DOH-LEPTO-001, WHO-LEPTO-001 |
+| 🟢 **LOW** | No flood exposure in last 2–4 weeks | Likely viral illness. Home care: rest, fluids, paracetamol for fever. Return if fever persists >3 days OR if flood exposure occurred within 2–30 days. | WHO-LEPTO-001, CDC-LEPTO-001 |
+| ⚪ **INSUFFICIENT_INFORMATION** | Flood exposure or fever status not recorded | Cannot safely classify. Confirm flood exposure history and fever status; consult with the physician on duty. | WHO-LEPTO-001 |
+
+**Verified source IDs** resolve through `protocols/leptospirosis_sources.json` (mirrored in `src/sources.ts`).
 
 ---
 
@@ -83,6 +110,12 @@ export FIREBASE_CREDENTIALS="" # Optional: path to serviceAccountKey.json
 streamlit run app.py
 ```
 Open `http://localhost:8501` on your desktop or mobile browser.
+
+### React PWA (alternative frontend)
+```bash
+npm install
+npm run dev   # serves React UI + Node API on http://localhost:3000
+```
 
 ---
 
@@ -135,15 +168,18 @@ curl -I https://leptowatch-xyz-as.a.run.app/_stcore/health
 
 ## 🔒 Firestore Security & Compliance
 - **Zero Patient PII**: No patient names, telephone numbers, or home addresses are ever collected or stored.
-- **Audit Collection**: Stored under `/triage_logs` with timestamps, nurse badge IDs, and clinical criteria for DOH surveillance.
+- **Audit Collection**: Stored under `/triage_logs` with timestamps, nurse badge IDs, clinical criteria, `ruleset_version`, and model pedigree.
+- **Immutable Audit Trail**: Documents are create-only. Explicit `update` and `delete` are denied for everyone.
 - **Firestore Security Rules**:
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /triage_logs/{logId} {
-      allow create: if request.resource.data.keys().hasAll(['timestamp', 'patient_data', 'result']);
+      allow create: if request.resource.data.keys().hasAll(['timestamp', 'patient_data', 'result', 'nurse_id', 'ruleset_version']);
       allow read: if request.auth != null;
+      allow update: if false;
+      allow delete: if false;
     }
     match /doh_protocol_cache/{version} {
       allow read: if true;
@@ -158,6 +194,6 @@ service cloud.firestore {
 ## 🌟 Meet the Builders Story
 *"Enterprise decision systems → rural nurse triage"*
 
-In the Philippines, extreme weather and typhoons routinely submerge communities. When waters recede, rural nurses face dozens of patients presenting with non-specific fevers. Missing leptospirosis causes Weil's disease; over-prescribing strains limited rural medicine supplies.
+In the Philippines, extreme weather and typhoons routinely submerge communities. When waters recede, rural nurses face dozens of patients presenting with non-specific fevers. Missing leptospirosis causes Weil's disease; unclear referral criteria strain limited rural health resources.
 
-By pairing Google Cloud Run's cost-effective serverless scale with Gemini 2.0 Flash's clinical reasoning and Firestore's zero-friction document logging, **LeptoWatch** brings enterprise-grade decision support directly to the frontline nurse's pocket phone. Even when cellular towers drop out, the cached DOH 2026 rule engine continues saving lives.
+By pairing Google Cloud Run's cost-effective serverless scale with a deterministic safety-first rule engine, Gemini's explanatory reasoning, and Firestore's zero-friction audit logging, **LeptoWatch** brings enterprise-grade decision support directly to the frontline nurse's pocket phone. Even when connectivity drops out, the locally cached rule engine continues providing authoritative risk stratification — Gemini adds context when available, never overriding the safety layer.

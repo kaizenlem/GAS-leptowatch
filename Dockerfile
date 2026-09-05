@@ -26,7 +26,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application source files
-COPY app.py triage.py gemini_client.py firestore_client.py firebase_config.py ./
+COPY app.py triage.py gemini_client.py firestore_client.py firebase_config.py sources.py ./
+COPY protocols/ ./protocols/
 
 # Expose standard Cloud Run port
 EXPOSE 8080

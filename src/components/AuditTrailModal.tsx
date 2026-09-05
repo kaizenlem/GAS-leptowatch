@@ -94,6 +94,8 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
         return "bg-orange-100 text-orange-800 border-orange-300";
       case "MODERATE":
         return "bg-amber-100 text-amber-800 border-amber-300";
+      case "INSUFFICIENT_INFORMATION":
+        return "bg-slate-200 text-slate-800 border-slate-300";
       case "LOW":
       default:
         return "bg-emerald-100 text-emerald-800 border-emerald-300";
@@ -151,6 +153,7 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
               <option value="HIGH">High Only</option>
               <option value="MODERATE">Moderate Only</option>
               <option value="LOW">Low Only</option>
+              <option value="INSUFFICIENT_INFORMATION">Insufficient Info Only</option>
             </select>
 
             <button
@@ -260,7 +263,8 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
         {/* Footer */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 text-center text-[11px] text-slate-500">
           Zero-PII Audit Trail: compliant with Philippine Data Privacy Act &amp;
-          DOH Epidemiological Surveillance protocols.
+          DOH epidemiological surveillance guidance. Records carry ruleset version
+          and model pedigree.
         </div>
       </div>
     </div>
